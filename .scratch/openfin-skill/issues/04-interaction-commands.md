@@ -1,6 +1,6 @@
 # 04 — `screenshot`, `text`, `click`, `type`, `eval`
 
-Status: claimed
+Status: resolved
 Type: task
 Blocked by: 03
 
