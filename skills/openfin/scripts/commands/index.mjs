@@ -12,6 +12,7 @@
 import { CliError, ErrorCode } from '../lib/errors.mjs';
 import config from './config.mjs';
 import doctor from './doctor.mjs';
+import status from './status.mjs';
 
 function notImplemented(summary) {
   return {
@@ -24,7 +25,7 @@ function notImplemented(summary) {
 }
 
 export const commands = {
-  status: notImplemented('Report whether the app is reachable on the debug port and who launched it.'),
+  status,
   launch: notImplemented('Start the dev server and the app with the debug port enabled.'),
   stop: notImplemented('Stop what this skill launched; leave attached instances alone.'),
   'list-targets': notImplemented('List windows and views by OpenFin identity (uuid/name).'),
