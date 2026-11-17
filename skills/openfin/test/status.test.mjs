@@ -7,6 +7,7 @@ import { killCollectorAfter } from './helpers/collector.mjs';
 test('status reports reachable:true for a running instance and leaves it running', async (t) => {
   const sim = await startSim(t);
   const repo = makeSimRepo({ debugPort: sim.debugPort });
+  killCollectorAfter(t, repo);
   const { exitCode, json } = runCli(['status'], { cwd: repo });
   assert.equal(exitCode, 0, JSON.stringify(json));
   assert.equal(json.reachable, true);
@@ -63,6 +64,7 @@ test('status ignores a recorded launch on a different port', async () => {
 test('status after the app quits reports reachable:false', async (t) => {
   const sim = await startSim(t);
   const repo = makeSimRepo({ debugPort: sim.debugPort });
+  killCollectorAfter(t, repo);
   assert.equal(runCli(['status'], { cwd: repo }).json.reachable, true);
   await sim.quit();
   const { exitCode, json } = runCli(['status'], { cwd: repo });

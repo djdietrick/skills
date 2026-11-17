@@ -4,6 +4,7 @@ import { readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import { runCli } from './helpers/cli.mjs';
 import { makeSimRepo, startSim } from './helpers/sim.mjs';
+import { killCollectorAfter } from './helpers/collector.mjs';
 
 // A form page whose button copies the input into #out.
 const FIXTURES = [
@@ -27,6 +28,7 @@ const FIXTURES = [
 async function setup(t) {
   const sim = await startSim(t, { fixtures: FIXTURES });
   const repo = makeSimRepo({ debugPort: sim.debugPort });
+  killCollectorAfter(t, repo);
   const cli = (args) => runCli(args, { cwd: repo });
   return { sim, repo, cli };
 }

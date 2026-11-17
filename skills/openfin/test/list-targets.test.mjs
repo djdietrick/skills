@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runCli } from './helpers/cli.mjs';
 import { makeSimRepo, startSim, simPageUrl } from './helpers/sim.mjs';
+import { killCollectorAfter } from './helpers/collector.mjs';
 
 // A platform app with two windows and a view, a second app that reuses the
 // window name "main", Workspace Home and Dock, and a page with no `fin`.
@@ -20,6 +21,7 @@ const byTarget = (json) => Object.fromEntries(json.targets.map((t) => [t.target,
 test('list-targets names every page by OpenFin identity with kind, parent, url and title', async (t) => {
   const sim = await startSim(t, { fixtures: FIXTURES });
   const repo = makeSimRepo({ debugPort: sim.debugPort });
+  killCollectorAfter(t, repo);
   const { exitCode, json } = runCli(['list-targets'], { cwd: repo });
   assert.equal(exitCode, 0, JSON.stringify(json));
   const targets = byTarget(json);
@@ -52,6 +54,7 @@ test('list-targets names every page by OpenFin identity with kind, parent, url a
 test('list-targets labels Workspace components and lists fin-less pages as kind unknown', async (t) => {
   const sim = await startSim(t, { fixtures: FIXTURES });
   const repo = makeSimRepo({ debugPort: sim.debugPort });
+  killCollectorAfter(t, repo);
   const targets = byTarget(runCli(['list-targets'], { cwd: repo }).json);
 
   assert.equal(targets['openfin-workspace/openfin-home'].workspace, 'Home');
@@ -82,6 +85,7 @@ test('list-targets attaches config window names as aliases, by identity or by sh
       ],
     },
   });
+  killCollectorAfter(t, repo);
   const targets = byTarget(runCli(['list-targets'], { cwd: repo }).json);
   assert.deepEqual(targets['sim-app/main'].aliases, ['shell']);
   assert.deepEqual(targets['other-app/main'].aliases, []);
@@ -91,6 +95,7 @@ test('list-targets attaches config window names as aliases, by identity or by sh
 test('--target resolves uuid/name, a unique short name, a config alias, or a fin-less page URL', async (t) => {
   const sim = await startSim(t, { fixtures: FIXTURES });
   const repo = makeSimRepo({ debugPort: sim.debugPort, config: { windows: [{ name: 'shell', identity: 'sim-app/main' }] } });
+  killCollectorAfter(t, repo);
   const resolve = (q) => {
     const { exitCode, json } = runCli(['list-targets', '--target', q], { cwd: repo });
     assert.equal(exitCode, 0, JSON.stringify(json));
@@ -107,6 +112,7 @@ test('--target resolves uuid/name, a unique short name, a config alias, or a fin
 test('an ambiguous short name fails with TARGET_AMBIGUOUS listing just the matching candidates', async (t) => {
   const sim = await startSim(t, { fixtures: FIXTURES });
   const repo = makeSimRepo({ debugPort: sim.debugPort });
+  killCollectorAfter(t, repo);
   const { exitCode, json } = runCli(['list-targets', '--target', 'main'], { cwd: repo });
   assert.equal(exitCode, 1);
   assert.equal(json.error.code, 'TARGET_AMBIGUOUS');
@@ -118,6 +124,7 @@ test('an ambiguous short name fails with TARGET_AMBIGUOUS listing just the match
 test('an unknown target fails with TARGET_NOT_FOUND listing every target as a candidate', async (t) => {
   const sim = await startSim(t, { fixtures: FIXTURES });
   const repo = makeSimRepo({ debugPort: sim.debugPort });
+  killCollectorAfter(t, repo);
   const { exitCode, json } = runCli(['list-targets', '--target', 'sim-app/nope'], { cwd: repo });
   assert.equal(exitCode, 1);
   assert.equal(json.error.code, 'TARGET_NOT_FOUND');
@@ -135,6 +142,7 @@ test("list-targets finds a view's parent from the platform snapshot when the vie
   const fixtures = FIXTURES.map((f) => (f.id === 'blotter' ? { ...f, parentApi: false } : f));
   const sim = await startSim(t, { fixtures });
   const repo = makeSimRepo({ debugPort: sim.debugPort });
+  killCollectorAfter(t, repo);
   const targets = byTarget(runCli(['list-targets'], { cwd: repo }).json);
   assert.equal(targets['sim-app/blotter-view'].kind, 'view');
   assert.equal(targets['sim-app/blotter-view'].parent, 'sim-app/main');
