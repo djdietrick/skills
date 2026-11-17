@@ -54,6 +54,21 @@ export async function ensureCollector(config) {
   }
 }
 
+/**
+ * ensureCollector, best effort: a collector that fails to start must not fail
+ * the command that wanted it. The one place that failure is handled.
+ * @returns {Promise<{ pid: number, logFile: string, started: boolean } | { running: false, error: string }>}
+ */
+export async function tryEnsureCollector(config) {
+  try {
+    return await ensureCollector(config);
+  } catch (err) {
+    const error = err?.message ?? String(err);
+    process.stderr.write(`log collector not started: ${error}\n`);
+    return { running: false, error };
+  }
+}
+
 async function ensureCollectorLocked(config) {
   const { repoRoot, debugPort } = config;
   const current = readState(repoRoot)?.collector;

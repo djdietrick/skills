@@ -10,6 +10,7 @@ import { mkdirSync, openSync, closeSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { scratchDir } from './state.mjs';
 import { isAlive } from './processes.mjs';
+import { pollUntil } from './wait.mjs';
 
 export function launchDir(repoRoot) {
   return join(scratchDir(repoRoot), 'launch');
@@ -71,11 +72,7 @@ function signalGroup(pid, signal) {
   }
 }
 
+/** Wait until `pid` has exited. @returns {Promise<boolean>} false on timeout */
 export async function waitForExit(pid, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (isAlive(pid)) {
-    if (Date.now() > deadline) return false;
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  return true;
+  return pollUntil(() => !isAlive(pid), { timeoutMs, intervalMs: 50 });
 }

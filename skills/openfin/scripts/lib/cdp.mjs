@@ -8,7 +8,7 @@
 // sure the background log collector is running (see collector.mjs).
 import { CliError, ErrorCode } from './errors.mjs';
 import { loadPlaywright } from './playwright.mjs';
-import { ensureCollector } from './collector.mjs';
+import { tryEnsureCollector } from './collector.mjs';
 
 export const DEBUG_HOST = '127.0.0.1';
 
@@ -53,10 +53,7 @@ export async function connect(config, { timeoutMs = 10000, collector = true } = 
   } catch (err) {
     throw unreachableError(config.debugPort, err?.message);
   }
-  if (collector) {
-    // Best effort: a collector that fails to start must not fail the command.
-    await ensureCollector(config).catch((err) => process.stderr.write(`log collector not started: ${err?.message ?? err}\n`));
-  }
+  if (collector) await tryEnsureCollector(config);
   return {
     browser,
     pages: () => browser.contexts().flatMap((c) => c.pages()),

@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { collectorStatus, logsDir } from '../lib/collector.mjs';
 import { CliError, ErrorCode } from '../lib/errors.mjs';
 import { runtimeDebugLogPath } from '../lib/config.mjs';
+import { parseTargetId, configAliases } from '../lib/identity.mjs';
 
 const DEFAULT_LIMIT = 100;
 const SEVERITY = { debug: 0, log: 1, info: 1, warn: 2, error: 3 };
@@ -58,15 +59,9 @@ function parseFlags(flags) {
   return { target: flags.target, level, limit };
 }
 
+/** An entry matches by its `uuid/name`, its short name, or a config alias of it. */
 function matchesTarget(query, config) {
-  const ids = new Set([query]);
-  const names = new Set([query]);
-  for (const w of config.windows ?? []) {
-    if (w.name !== query) continue;
-    if (w.identity) ids.add(w.identity);
-    else names.add(w.name);
-  }
-  return (e) => ids.has(e.target) || names.has(e.target.slice(e.target.indexOf('/') + 1));
+  return (e) => e.target === query || parseTargetId(e.target).name === query || configAliases(e.target, config).includes(query);
 }
 
 function readEntries(file) {

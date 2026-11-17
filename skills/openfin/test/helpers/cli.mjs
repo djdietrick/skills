@@ -1,6 +1,7 @@
 // Test harness: runs the openfin CLI as a subprocess and parses its single
 // JSON stdout object. Tests assert only on { exitCode, json } and on
-// observable effects; they never import the CLI's internal modules.
+// observable effects; they never import the CLI's internal modules (test
+// helpers may reuse its plain PID utilities to check and clean up processes).
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';

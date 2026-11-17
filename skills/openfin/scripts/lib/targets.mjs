@@ -24,6 +24,8 @@
 //   }
 import { connect } from './cdp.mjs';
 import { CliError, ErrorCode } from './errors.mjs';
+import { formatTargetId, configAliases } from './identity.mjs';
+import { withTimeout } from './wait.mjs';
 
 export const WORKSPACE_UUID = 'openfin-workspace';
 export const WORKSPACE_COMPONENTS = Object.freeze({
@@ -126,26 +128,26 @@ function describe(t) {
 
 /** Runs in the page. Never throws; `fin`-less or hung pages come back as { fin: false }. */
 async function readIdentity(page) {
-  const evaluated = page
-    .evaluate(async () => {
-      const f = globalThis.fin;
-      if (!f?.me?.identity) return { fin: false };
-      const { uuid, name } = f.me.identity;
-      const isView = Boolean(f.me.isView);
-      let parent = null;
-      if (isView) {
-        try {
-          const w = await f.me.getCurrentWindow();
-          if (w?.identity) parent = { uuid: w.identity.uuid, name: w.identity.name };
-        } catch {
-          // fall back to the platform snapshot
-        }
+  const evaluated = page.evaluate(async () => {
+    const f = globalThis.fin;
+    if (!f?.me?.identity) return { fin: false };
+    const { uuid, name } = f.me.identity;
+    const isView = Boolean(f.me.isView);
+    let parent = null;
+    if (isView) {
+      try {
+        const w = await f.me.getCurrentWindow();
+        if (w?.identity) parent = { uuid: w.identity.uuid, name: w.identity.name };
+      } catch {
+        // fall back to the platform snapshot
       }
-      return { fin: true, uuid, name, kind: isView ? 'view' : 'window', parent };
-    })
-    .catch(() => ({ fin: false }));
-  const timeout = new Promise((r) => setTimeout(() => r({ fin: false }), PAGE_EVAL_TIMEOUT_MS).unref());
-  const [info, title] = await Promise.all([Promise.race([evaluated, timeout]), page.title().catch(() => '')]);
+    }
+    return { fin: true, uuid, name, kind: isView ? 'view' : 'window', parent };
+  });
+  const [info, title] = await Promise.all([
+    withTimeout(evaluated, PAGE_EVAL_TIMEOUT_MS).catch(() => ({ fin: false })),
+    page.title().catch(() => ''),
+  ]);
   return { ...info, title };
 }
 
@@ -189,23 +191,16 @@ function toTarget(page, info, config) {
   if (!info.fin) {
     return { target: url, uuid: null, name: null, kind: 'unknown', parent: null, url, title: info.title, workspace: null, aliases: [] };
   }
-  const id = `${info.uuid}/${info.name}`;
+  const id = formatTargetId(info.uuid, info.name);
   return {
     target: id,
     uuid: info.uuid,
     name: info.name,
     kind: info.kind,
-    parent: info.parent ? `${info.parent.uuid}/${info.parent.name}` : null,
+    parent: info.parent ? formatTargetId(info.parent.uuid, info.parent.name) : null,
     url,
     title: info.title,
     workspace: (info.uuid === WORKSPACE_UUID && WORKSPACE_COMPONENTS[info.name]) || null,
-    aliases: aliasesFor(id, info.name, config),
+    aliases: configAliases(id, config),
   };
-}
-
-/** Config windows[] entries match by `identity` when set, else by short name. */
-function aliasesFor(id, name, config) {
-  return (config?.windows ?? [])
-    .filter((w) => (w.identity ? w.identity === id : w.name === name))
-    .map((w) => w.name);
 }

@@ -1,10 +1,12 @@
 // Test-side helpers for the background log collector. Tests read its PID
 // from the session state file (the same place `stop` will) and always kill
-// it afterwards, so no collector outlives its test.
+// it afterwards, so no collector outlives its test. Process checks reuse the
+// CLI's own helpers (plain PID utilities, not CLI behaviour under test).
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { basename, join } from 'node:path';
-import { setTimeout as sleep } from 'node:timers/promises';
+import { isAlive } from '../../scripts/lib/processes.mjs';
+import { waitForExit as waitForOwnedExit } from '../../scripts/lib/owned.mjs';
 
 export function collectorPid(repo) {
   try {
@@ -29,24 +31,11 @@ export function collectorPidsFor(repo) {
     .map((line) => Number(line.trim().split(/\s+/)[0]));
 }
 
-export function isAlive(pid) {
-  if (!pid) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return err.code === 'EPERM';
-  }
-}
+export { isAlive };
 
 /** Wait until `pid` has exited; false on timeout. */
-export async function waitForExit(pid, timeoutMs = 5000) {
-  const deadline = Date.now() + timeoutMs;
-  while (isAlive(pid)) {
-    if (Date.now() > deadline) return false;
-    await sleep(50);
-  }
-  return true;
+export function waitForExit(pid, timeoutMs = 5000) {
+  return waitForOwnedExit(pid, timeoutMs);
 }
 
 /** Register a t.after that kills every collector started for the repo. */

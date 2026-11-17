@@ -17,7 +17,7 @@ import { join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { probeDebugPort, debugUrl, withoutDebugPortHint } from '../lib/cdp.mjs';
 import { findAppOpenFinProcesses } from '../lib/processes.mjs';
-import { ensureCollector } from '../lib/collector.mjs';
+import { tryEnsureCollector } from '../lib/collector.mjs';
 import { CliError, ErrorCode } from '../lib/errors.mjs';
 import { readState, updateState, isLaunchedInstance } from '../lib/state.mjs';
 import { spawnOwned, killOwnedTree, tail, launchDir } from '../lib/owned.mjs';
@@ -41,7 +41,7 @@ export default {
         attached: true,
         debugPort,
         launchedBySkill: isLaunchedInstance(readState(repoRoot), debugPort, probe),
-        collector: await startCollector(config),
+        collector: await tryEnsureCollector(config),
       };
     }
 
@@ -88,18 +88,10 @@ export default {
       debugPort,
       app: { pid: app.pid, command: app.command },
       devServer: devServer ?? null,
-      collector: await startCollector(config),
+      collector: await tryEnsureCollector(config),
     };
   },
 };
-
-async function startCollector(config) {
-  try {
-    return await ensureCollector(config);
-  } catch (err) {
-    return { running: false, error: err?.message ?? String(err) };
-  }
-}
 
 /** @returns {Promise<null | { alreadyRunning: true, readyUrl: string } | { pid: number, command: string, cwd: string, logFile: string }>} */
 async function startDevServer(config, logFile, timeoutMs) {

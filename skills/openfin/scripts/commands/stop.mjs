@@ -44,7 +44,7 @@ export default {
     if (isLaunchedInstance(state, debugPort, probe)) {
       const pid = launch.pid;
       const quitIn = await requestQuit(config);
-      if (quitIn && (await pollUntil(async () => !(await probeDebugPort(debugPort, { timeoutMs: 500 })).reachable, { timeoutMs: quitTimeoutMs, intervalMs: 200 }))) {
+      if (quitIn && (await waitForPortClosed(debugPort, quitTimeoutMs))) {
         stopped.push({ what: 'app', debugPort, pid, quitVia: quitIn });
         clearAppRecord();
       } else {
@@ -94,6 +94,10 @@ export default {
     return { stopped, leftRunning };
   },
 };
+
+function waitForPortClosed(port, timeoutMs) {
+  return pollUntil(async () => !(await probeDebugPort(port, { timeoutMs: 500 })).reachable, { timeoutMs, intervalMs: 200 });
+}
 
 /** Call quit() in the first non-Workspace app window. @returns the `uuid/name` used, or null. */
 async function requestQuit(config) {
