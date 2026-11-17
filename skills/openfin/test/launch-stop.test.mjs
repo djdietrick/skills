@@ -4,7 +4,8 @@
 // whatever the CLI did.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync, readFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCli } from './helpers/cli.mjs';
 import { makeSimRepo, startSim, freePort, SIM_BACKEND } from './helpers/sim.mjs';
@@ -215,4 +216,57 @@ test('when the app fails to launch, the dev server launch started is stopped aga
   assert.match(json.error.runtimeOutput, /no runtime/);
   assert.equal(readStateFile(repo).devServer ?? null, null);
   await assert.rejects(fetch(`http://127.0.0.1:${devPort}/`, { signal: AbortSignal.timeout(1000) }));
+});
+
+/** A stand-in that records its pid in a fresh file, then idles: never opens a port, never prints a ready line. */
+function hangingProcess() {
+  const pidFile = join(mkdtempSync(join(tmpdir(), 'openfin-pid-')), 'pid');
+  const script = `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setInterval(() => {}, 1000)`;
+  return {
+    command: `${node} -e ${q(script)}`,
+    pid: () => {
+      try {
+        return Number(readFileSync(pidFile, 'utf8'));
+      } catch {
+        return undefined;
+      }
+    },
+  };
+}
+
+test('a launcher that stays alive but never opens the debug port is killed when launch times out', { timeout: 30_000 }, async (t) => {
+  const launcher = hangingProcess();
+  const { repo } = await launchableRepo({ launcher: { command: launcher.command } });
+  cleanupAfter(t, repo, () => [launcher.pid()]);
+
+  const { exitCode, json } = runCli(['launch', '--timeout', '1500'], { cwd: repo });
+  assert.notEqual(exitCode, 0);
+  assert.equal(json.error.code, 'LAUNCH_FAILED', JSON.stringify(json));
+  assert.match(json.error.message, /1\.5s/);
+  assert.ok(launcher.pid(), 'the launcher should have started');
+  assert.ok(await waitForExit(launcher.pid()), 'the launcher this launch started must be killed on failure');
+  assert.equal(readStateFile(repo).app ?? null, null);
+});
+
+test('a dev server that never becomes ready is killed when launch times out', { timeout: 30_000 }, async (t) => {
+  const devServer = hangingProcess();
+  const { repo } = await launchableRepo({
+    devServer: { command: devServer.command, readyUrl: `http://127.0.0.1:${await freePort()}/` },
+  });
+  cleanupAfter(t, repo, () => [devServer.pid()]);
+
+  const { exitCode, json } = runCli(['launch', '--timeout', '1500'], { cwd: repo });
+  assert.notEqual(exitCode, 0);
+  assert.equal(json.error.code, 'LAUNCH_FAILED', JSON.stringify(json));
+  assert.ok(devServer.pid(), 'the dev server should have started');
+  assert.ok(await waitForExit(devServer.pid()), 'the dev server this launch started must be killed on failure');
+  assert.equal(readStateFile(repo).devServer ?? null, null);
+});
+
+test('launch rejects a malformed --timeout', async (t) => {
+  const { repo } = await launchableRepo();
+  cleanupAfter(t, repo);
+  const { exitCode, json } = runCli(['launch', '--timeout', 'soon'], { cwd: repo });
+  assert.notEqual(exitCode, 0);
+  assert.equal(json.error.code, 'INVALID_ARGS');
 });

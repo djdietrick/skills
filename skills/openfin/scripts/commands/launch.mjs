@@ -1,7 +1,7 @@
-// `openfin launch` — attach first, launch only when nothing is running.
+// `openfin launch [--timeout <ms>]` — attach first, launch only when nothing is running.
 //
 // Debug port reachable: attach (start nothing), make sure the log collector runs.
-// Otherwise:
+// Otherwise (each wait bounded by --timeout, default 120 s):
 //   1. dev server (config.devServer): skipped when its readyUrl already
 //      answers (someone else runs it; not ours). Else start it and wait for
 //      readySignal in its output / readyUrl to answer.
@@ -18,16 +18,18 @@ import { ensureCollector } from '../lib/collector.mjs';
 import { CliError, ErrorCode } from '../lib/errors.mjs';
 import { readState, updateState, launchedBySkill } from '../lib/state.mjs';
 import { spawnOwned, killOwnedTree, tail, launchDir } from '../lib/owned.mjs';
+import { timeoutFlag } from '../lib/args.mjs';
+import { pollUntil } from '../lib/wait.mjs';
 
-const DEV_SERVER_TIMEOUT_MS = 120_000;
-const APP_TIMEOUT_MS = 120_000;
+const DEFAULT_TIMEOUT_MS = 120_000;
 const POLL_MS = 250;
 
 export default {
   summary: 'Start the dev server and the app with the debug port enabled.',
   needsConfig: true,
-  async run({ config, env }) {
+  async run({ config, env, args }) {
     const { debugPort, repoRoot } = config;
+    const timeoutMs = timeoutFlag(args.flags.timeout, DEFAULT_TIMEOUT_MS);
     if ((await probeDebugPort(debugPort)).reachable) {
       return {
         launched: false,
@@ -40,13 +42,14 @@ export default {
 
     const logs = { devServer: join(launchDir(repoRoot), 'dev-server.log'), app: join(launchDir(repoRoot), 'app.log') };
     let devServer = null;
-    let app = null;
+    let app;
     try {
-      devServer = await startDevServer(config, logs.devServer);
+      devServer = await startDevServer(config, logs.devServer, timeoutMs);
       if (devServer?.pid) updateState(repoRoot, (s) => ({ ...s, devServer: { ...devServer, startedAt: new Date().toISOString() } }));
-      app = await startApp(config, env, logs.app);
+      app = await startApp(config, env, logs.app, timeoutMs);
     } catch (err) {
-      if (app?.pid) await killOwnedTree(app.pid);
+      // startDevServer / startApp kill their own process when they fail; a
+      // dev server that did come up is ours to stop again.
       if (devServer?.pid) {
         await killOwnedTree(devServer.pid);
         updateState(repoRoot, (s) => ({ ...s, devServer: null }));
@@ -80,36 +83,29 @@ async function startCollector(config) {
 }
 
 /** @returns {Promise<null | { alreadyRunning: true, readyUrl: string } | { pid: number, command: string, cwd: string, logFile: string }>} */
-async function startDevServer(config, logFile) {
+async function startDevServer(config, logFile, timeoutMs) {
   const ds = config.devServer;
   if (!ds) return null;
   if (ds.readyUrl && (await urlResponds(ds.readyUrl))) return { alreadyRunning: true, readyUrl: ds.readyUrl };
 
-  const child = spawnOwned({ command: ds.command, cwd: ds.cwd, logFile });
-  const exit = watchExit(child);
-  const started = { pid: child.pid, command: ds.command, cwd: ds.cwd, logFile };
-  const fail = (message) => {
-    const e = launchFailed(message, { devServer: logFile });
-    e.started = started;
-    return e;
-  };
-  if (!child.pid) throw fail(`Could not start the dev server (${ds.command}).`);
-
-  const deadline = Date.now() + DEV_SERVER_TIMEOUT_MS;
-  for (;;) {
-    if (exit.code !== undefined) throw fail(`The dev server exited (code ${exit.code}) before it was ready.`);
-    if (ds.readySignal ? tail(logFile, Infinity).includes(ds.readySignal) : ds.readyUrl ? await urlResponds(ds.readyUrl) : true) break;
-    if (Date.now() > deadline) {
-      throw fail(`The dev server wasn't ready after ${DEV_SERVER_TIMEOUT_MS / 1000}s (waiting for ${ds.readySignal ? `"${ds.readySignal}" in its output` : ds.readyUrl}).`);
-    }
-    await sleep(POLL_MS);
-  }
-  child.unref();
-  return started;
+  const { pid } = await startOwned({
+    spec: { command: ds.command, cwd: ds.cwd, display: ds.command },
+    label: 'dev server',
+    logFile,
+    failLogs: { devServer: logFile },
+    timeoutMs,
+    isReady: async () =>
+      ds.readySignal ? tail(logFile, Infinity).includes(ds.readySignal) : ds.readyUrl ? urlResponds(ds.readyUrl) : true,
+    exitFails: () => true,
+    exitMessage: (code) => `The dev server exited (code ${code}) before it was ready.`,
+    timeoutMessage: (secs) =>
+      `The dev server wasn't ready after ${secs}s (waiting for ${ds.readySignal ? `"${ds.readySignal}" in its output` : ds.readyUrl}).`,
+  });
+  return { pid, command: ds.command, cwd: ds.cwd, logFile };
 }
 
 /** @returns {Promise<{ pid: number, command: string }>} */
-async function startApp(config, env, logFile) {
+async function startApp(config, env, logFile, timeoutMs) {
   const { debugPort, repoRoot } = config;
   const manifest = /^[a-z][a-z0-9+.-]*:\/\//i.test(config.manifest) ? config.manifest : resolve(repoRoot, config.manifest);
   let spec;
@@ -132,28 +128,46 @@ async function startApp(config, env, logFile) {
     spec = { file: rvm, args, cwd: repoRoot, display: [rvm, ...args].join(' ') };
   }
 
+  const { pid } = await startOwned({
+    spec,
+    label: 'app',
+    logFile,
+    failLogs: { app: logFile },
+    timeoutMs,
+    isReady: () => hasPageTarget(debugPort),
+    // The RVM exits 0 once it has handed off to the runtime; only a non-zero exit is a failure.
+    exitFails: (code) => code !== 0,
+    exitMessage: (code) => `The app launcher exited with code ${code}.`,
+    timeoutMessage: (secs) => `Nothing answered on debug port ${debugPort} with a window after ${secs}s.`,
+  });
+  return { pid, command: spec.display };
+}
+
+/**
+ * Spawn a process this skill owns and wait until `isReady()`. On any failure
+ * (could not spawn, exited early, not ready in time) its process tree is
+ * killed before LAUNCH_FAILED is thrown, so a failed start never leaks.
+ * @returns {Promise<{ pid: number }>}
+ */
+async function startOwned({ spec, label, logFile, failLogs, timeoutMs, isReady, exitFails, exitMessage, timeoutMessage }) {
   const child = spawnOwned({ ...spec, logFile });
   const exit = watchExit(child);
-  const started = { pid: child.pid, command: spec.display };
-  const fail = (message) => {
-    const e = launchFailed(message, { app: logFile });
-    e.started = started;
-    return e;
-  };
-  if (!child.pid) throw fail(`Could not start the app (${spec.display}).`);
-
-  // The RVM exits 0 once it has handed off to the runtime; only a non-zero exit is a failure.
-  const deadline = Date.now() + APP_TIMEOUT_MS;
-  for (;;) {
-    if (exit.code !== undefined && exit.code !== 0) throw fail(`The app launcher exited with code ${exit.code}.`);
-    if (await hasPageTarget(debugPort)) break;
-    if (Date.now() > deadline) {
-      throw fail(`Nothing answered on debug port ${debugPort} with a window after ${APP_TIMEOUT_MS / 1000}s.`);
-    }
-    await sleep(POLL_MS);
+  try {
+    if (!child.pid) throw new Error(`Could not start the ${label} (${spec.display}).`);
+    const ready = await pollUntil(
+      () => {
+        if (exit.code !== undefined && exitFails(exit.code)) throw new Error(exitMessage(exit.code));
+        return isReady();
+      },
+      { timeoutMs, intervalMs: POLL_MS },
+    );
+    if (!ready) throw new Error(timeoutMessage(timeoutMs / 1000));
+  } catch (err) {
+    if (child.pid) await killOwnedTree(child.pid);
+    throw launchFailed(err.message, failLogs);
   }
   child.unref();
-  return started;
+  return { pid: child.pid };
 }
 
 function watchExit(child) {
@@ -193,5 +207,3 @@ function launchFailed(message, logs) {
     details,
   });
 }
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

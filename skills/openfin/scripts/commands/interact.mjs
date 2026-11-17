@@ -4,6 +4,7 @@
 import { withTarget } from '../lib/targets.mjs';
 import { CliError, ErrorCode } from '../lib/errors.mjs';
 import { scratchDir } from '../lib/state.mjs';
+import { timeoutFlag as parseTimeoutFlag } from '../lib/args.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -150,14 +151,7 @@ async function waitFor(page, target, selector, { state, timeout }) {
 }
 
 function timeoutFlag(value) {
-  if (value === undefined) return DEFAULT_SELECTOR_TIMEOUT_MS;
-  const n = Number(value);
-  if (value === true || !Number.isInteger(n) || n < 0) {
-    throw new CliError(ErrorCode.INVALID_ARGS, '--timeout must be a whole number of milliseconds.', {
-      hint: `Example: --timeout 10000 (default ${DEFAULT_SELECTOR_TIMEOUT_MS}).`,
-    });
-  }
-  return n;
+  return parseTimeoutFlag(value, DEFAULT_SELECTOR_TIMEOUT_MS);
 }
 
 function optionalFlag(value, flag, what) {
