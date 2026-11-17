@@ -1,6 +1,6 @@
 # 02 — Simulated OpenFin test backend + `status` command
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: 01
 
