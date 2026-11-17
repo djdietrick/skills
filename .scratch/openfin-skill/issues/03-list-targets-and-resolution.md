@@ -1,6 +1,6 @@
 # 03 — `list-targets` and target name resolution
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: 02
 

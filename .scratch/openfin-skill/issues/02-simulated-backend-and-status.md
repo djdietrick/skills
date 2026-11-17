@@ -1,6 +1,6 @@
 # 02 — Simulated OpenFin test backend + `status` command
 
-Status: claimed
+Status: resolved
 Type: task
 Blocked by: 01
 
