@@ -10,18 +10,21 @@
 //
 // API (for `launch`, first attach via cdp.connect, and `stop`):
 //   ensureCollector(config) -> { pid, logFile, started }  idempotent: reuses a live
-//                                                        collector on the same port
+//                                                        collector on the same port; serialized
+//                                                        across processes by .scratch/openfin/collector.lock
 //   stopCollector(repoRoot) -> { stopped, pid? }         kills it, clears state.collector
 //   collectorStatus(repoRoot) -> { running, pid?, logFile? }
 import { spawn } from 'node:child_process';
-import { mkdirSync, openSync, closeSync } from 'node:fs';
+import { mkdirSync, openSync, closeSync, writeSync, readFileSync, statSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scratchDir, readState, updateState } from './state.mjs';
 import { isAlive } from './processes.mjs';
+import { pollUntil } from './wait.mjs';
 
 const COLLECTOR_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), '..', 'collector.mjs');
 const READY_TIMEOUT_MS = 15000;
+const LOCK_STALE_MS = READY_TIMEOUT_MS + 5000; // longer than any start holds the lock
 
 export function logsDir(repoRoot) {
   return join(scratchDir(repoRoot), 'logs');
@@ -42,6 +45,16 @@ export function collectorStatus(repoRoot) {
  * @returns {Promise<{ pid: number, logFile: string, started: boolean }>}
  */
 export async function ensureCollector(config) {
+  // Serialized across CLI processes: concurrent first attaches must not each start one.
+  const release = await acquireStartLock(config.repoRoot);
+  try {
+    return await ensureCollectorLocked(config);
+  } finally {
+    release();
+  }
+}
+
+async function ensureCollectorLocked(config) {
   const { repoRoot, debugPort } = config;
   const current = readState(repoRoot)?.collector;
   if (current && isAlive(current.pid)) {
@@ -105,6 +118,45 @@ export function stopCollector(repoRoot) {
   }
   updateState(repoRoot, (s) => ({ ...s, collector: null }));
   return { stopped, pid: c.pid };
+}
+
+/**
+ * Take the collector start lock (.scratch/openfin/collector.lock, created
+ * exclusively, holding the owner's PID). A lock whose owner is dead, or that
+ * is older than any start could take, is stale and taken over.
+ * @returns {Promise<() => void>} release
+ */
+async function acquireStartLock(repoRoot) {
+  const lockPath = join(scratchDir(repoRoot), 'collector.lock');
+  mkdirSync(dirname(lockPath), { recursive: true });
+  const acquired = await pollUntil(
+    () => {
+      try {
+        const fd = openSync(lockPath, 'wx');
+        writeSync(fd, String(process.pid));
+        closeSync(fd);
+        return true;
+      } catch (err) {
+        if (err.code !== 'EEXIST') throw err;
+        if (lockIsStale(lockPath)) rmSync(lockPath, { force: true });
+        return false;
+      }
+    },
+    { timeoutMs: LOCK_STALE_MS, intervalMs: 50 },
+  );
+  if (!acquired) throw new Error(`log collector start lock ${lockPath} is held by another process`);
+  return () => rmSync(lockPath, { force: true });
+}
+
+function lockIsStale(lockPath) {
+  try {
+    const owner = Number(readFileSync(lockPath, 'utf8'));
+    // An empty file is a lock being written right now: not stale unless old.
+    if (owner && !isAlive(owner)) return true;
+    return Date.now() - statSync(lockPath).mtimeMs > LOCK_STALE_MS;
+  } catch {
+    return false; // gone already; the next try takes it
+  }
 }
 
 function waitForReady(child) {

@@ -1,7 +1,7 @@
 // Test harness: runs the openfin CLI as a subprocess and parses its single
 // JSON stdout object. Tests assert only on { exitCode, json } and on
 // observable effects; they never import the CLI's internal modules.
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -17,23 +17,48 @@ export const FIXTURES = join(here, '..', 'fixtures');
  * OPENFIN_* variables removed so the developer's shell can't leak in.
  */
 export function runCli(args, { cwd, env = {}, cli = CLI } = {}) {
+  const res = spawnSync(process.execPath, [cli, ...args], {
+    cwd: cwd ?? makeRepo(),
+    env: cliEnv(env),
+    encoding: 'utf8',
+  });
+  return parseResult(res.status, res.stdout, res.stderr);
+}
+
+/** Like runCli, but doesn't block: for running several CLI calls at once. */
+export function runCliAsync(args, { cwd, env = {}, cli = CLI } = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [cli, ...args], { cwd: cwd ?? makeRepo(), env: cliEnv(env) });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (d) => (stdout += d));
+    child.stderr.on('data', (d) => (stderr += d));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      try {
+        resolve(parseResult(code, stdout, stderr));
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
+}
+
+function cliEnv(env) {
   const baseEnv = Object.fromEntries(
     Object.entries(process.env).filter(([k]) => !k.startsWith('OPENFIN_') && k !== 'NODE_PATH'),
   );
-  const res = spawnSync(process.execPath, [cli, ...args], {
-    cwd: cwd ?? makeRepo(),
-    env: { ...baseEnv, ...env },
-    encoding: 'utf8',
-  });
+  return { ...baseEnv, ...env };
+}
+
+function parseResult(exitCode, stdout, stderr) {
   let json;
   try {
-    json = JSON.parse(res.stdout);
+    json = JSON.parse(stdout);
   } catch {
-    throw new Error(
-      `stdout was not a single JSON object.\nstdout: ${res.stdout}\nstderr: ${res.stderr}`,
-    );
+    throw new Error(`stdout was not a single JSON object.\nstdout: ${stdout}\nstderr: ${stderr}`);
   }
-  return { exitCode: res.status, json, stderr: res.stderr };
+  return { exitCode, json, stderr };
 }
 
 /** Create an empty temp "consuming repo". Optionally seed docs/agents/openfin.md. */

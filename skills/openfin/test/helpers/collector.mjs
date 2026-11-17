@@ -2,7 +2,8 @@
 // from the session state file (the same place `stop` will) and always kill
 // it afterwards, so no collector outlives its test.
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { basename, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 export function collectorPid(repo) {
@@ -11,6 +12,21 @@ export function collectorPid(repo) {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * PIDs of every collector process started for `repo` (found by command line,
+ * so it includes any the state file doesn't name). POSIX only; elsewhere
+ * falls back to the state file's collector.
+ */
+export function collectorPidsFor(repo) {
+  if (process.platform === 'win32') return [collectorPid(repo)].filter(Boolean);
+  const out = execFileSync('ps', ['-A', '-o', 'pid=,command='], { encoding: 'utf8' });
+  const dir = basename(repo); // unique temp dir name; immune to /var vs /private/var
+  return out
+    .split('\n')
+    .filter((line) => line.includes('collector.mjs') && line.includes(dir))
+    .map((line) => Number(line.trim().split(/\s+/)[0]));
 }
 
 export function isAlive(pid) {
@@ -33,16 +49,17 @@ export async function waitForExit(pid, timeoutMs = 5000) {
   return true;
 }
 
-/** Register a t.after that kills whatever collector the repo's state names. */
+/** Register a t.after that kills every collector started for the repo. */
 export function killCollectorAfter(t, repo) {
   t.after(async () => {
-    const pid = collectorPid(repo);
-    if (!isAlive(pid)) return;
-    try {
-      process.kill(pid, 'SIGKILL');
-    } catch {
-      // already gone
+    for (const pid of new Set([collectorPid(repo), ...collectorPidsFor(repo)])) {
+      if (!isAlive(pid)) continue;
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {
+        // already gone
+      }
+      await waitForExit(pid);
     }
-    await waitForExit(pid);
   });
 }

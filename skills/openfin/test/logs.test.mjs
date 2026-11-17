@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { runCli } from './helpers/cli.mjs';
+import { runCli, runCliAsync } from './helpers/cli.mjs';
 import { makeSimRepo, startSim } from './helpers/sim.mjs';
-import { collectorPid, isAlive, killCollectorAfter, waitForExit } from './helpers/collector.mjs';
+import { collectorPid, collectorPidsFor, isAlive, killCollectorAfter, waitForExit } from './helpers/collector.mjs';
 
 const FIXTURES = [
   { id: 'main', uuid: 'sim-app', name: 'main', kind: 'window', title: 'Main' },
@@ -119,6 +119,16 @@ test('starting the collector is idempotent: later attaches reuse the live one', 
   runCli(['status'], { cwd: repo });
   assert.equal(collectorPid(repo), pid);
   assert.equal(runCli(['logs'], { cwd: repo }).json.collector.running, true);
+});
+
+test('concurrent first attaches start exactly one collector', async (t) => {
+  const sim = await startSim(t, { fixtures: FIXTURES });
+  const repo = makeSimRepo({ debugPort: sim.debugPort });
+  killCollectorAfter(t, repo);
+
+  const results = await Promise.all([1, 2, 3, 4].map(() => runCliAsync(['list-targets'], { cwd: repo })));
+  for (const r of results) assert.equal(r.exitCode, 0, JSON.stringify(r.json));
+  assert.deepEqual(collectorPidsFor(repo), [collectorPid(repo)], 'one collector, and it is the one the state names');
 });
 
 test('the collector exits on its own when the runtime goes away', async (t) => {
