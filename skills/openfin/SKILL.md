@@ -52,7 +52,7 @@ Setup is done when `doctor` returns `ready: true`.
 ## 2. Attach first
 
 1. `status`. If the app is `reachable`, **attach**: use it as is.
-2. If an instance is running without the debug port (`INSTANCE_WITHOUT_DEBUG_PORT`), tell the developer to add the runtime argument (above) and restart it themselves. Leave their app running.
+2. If an instance is running without the debug port (`status` returns `reachable: false` with `warning.code: INSTANCE_WITHOUT_DEBUG_PORT`), tell the developer to add the runtime argument (above) and restart it themselves. Leave their app running.
 3. If nothing is running, `launch`. It starts the dev server, launches the app through the RVM with the debug port added, and returns once the first window exists.
 4. `list-targets` to learn the windows and views, then work with them.
 5. When finished, `stop`. It quits only what `launch` started.
