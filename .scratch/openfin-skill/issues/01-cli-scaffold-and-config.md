@@ -1,6 +1,6 @@
 # 01 — Skill scaffold, CLI output contract, project config parsing
 
-Status: claimed
+Status: resolved
 Type: task
 Blocked by: none
 
