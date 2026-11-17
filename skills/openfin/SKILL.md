@@ -24,7 +24,7 @@ node <skill-dir>/scripts/openfin.mjs <command> [args] [--config <path>]
 - success: `{ "ok": true, ... }`, exit code 0
 - failure: `{ "ok": false, "error": { "code", "message", "hint"?, ... } }`, exit code 1
 
-Branch on `error.code`; follow `error.hint`. Codes: `CONFIG_MISSING`, `CONFIG_INVALID` (with `fields`), `PLAYWRIGHT_MISSING`, `DEBUG_PORT_UNREACHABLE`, `INSTANCE_WITHOUT_DEBUG_PORT`, `TARGET_NOT_FOUND` / `TARGET_AMBIGUOUS` (with `candidates`), `SELECTOR_TIMEOUT`, `LAUNCH_FAILED`, `INVALID_ARGS`, `UNKNOWN_COMMAND`, `NOT_IMPLEMENTED`, `INTERNAL_ERROR`.
+Branch on `error.code`; follow `error.hint`. Codes: `CONFIG_MISSING`, `CONFIG_INVALID` (with `fields`), `PLAYWRIGHT_MISSING`, `DEBUG_PORT_UNREACHABLE`, `INSTANCE_WITHOUT_DEBUG_PORT`, `TARGET_NOT_FOUND` / `TARGET_AMBIGUOUS` (with `candidates`), `SELECTOR_TIMEOUT` (with `target`, `selector`), `EVAL_FAILED`, `LAUNCH_FAILED`, `INVALID_ARGS`, `UNKNOWN_COMMAND`, `NOT_IMPLEMENTED`, `INTERNAL_ERROR`.
 
 ## 1. Project config
 
@@ -71,14 +71,14 @@ Ownership is recorded in `.scratch/openfin/state.json` in the consuming repo, so
 | `node <skill-dir>/scripts/openfin.mjs launch` | Attaches if the port is already reachable; otherwise starts the dev server, waits for readiness, launches via the RVM, waits for the first target. `LAUNCH_FAILED` carries the dev-server/runtime output. |
 | `node <skill-dir>/scripts/openfin.mjs stop` | Quits the app it launched (via the app's quit API), then the dev server and log collector it started. Reports `stopped` and `leftRunning`. |
 | `node <skill-dir>/scripts/openfin.mjs list-targets [--target <t>]` | `targets[]`, one per window and view: `target` (`uuid/name`; the URL for a page with no `fin`), `uuid`, `name`, `kind` (`window`/`view`/`unknown`), `parent` (a view's window, `uuid/name`), `url`, `title`, `workspace` (`Home`/`Dock`/`Store` or null), `aliases` (config `windows[].name`s). `--target` returns only the one target `<t>` resolves to, or the error. |
-| `node <skill-dir>/scripts/openfin.mjs screenshot <target>` | Saves a PNG under `.scratch/openfin/screenshots/` and returns its absolute path. Read the file to see it. |
-| `node <skill-dir>/scripts/openfin.mjs text <target> [--selector <css>]` | Visible text of the page or of one element. |
-| `node <skill-dir>/scripts/openfin.mjs click <target> <selector>` | Clicks an element. |
-| `node <skill-dir>/scripts/openfin.mjs type <target> <selector> <text>` | Types text into an element. |
-| `node <skill-dir>/scripts/openfin.mjs eval <target> <js>` | Runs JavaScript in the target and returns the JSON-serialized result. Use it for app state or `fin` APIs no other command covers. |
+| `node <skill-dir>/scripts/openfin.mjs screenshot <target>` | Saves a PNG under `.scratch/openfin/screenshots/` (timestamped, target-named, never overwritten) and returns its absolute `path`. Read the file to see it. |
+| `node <skill-dir>/scripts/openfin.mjs text <target> [--selector <css>] [--timeout <ms>]` | `text`: visible text (`innerText`) of the page, or of the first element matching the selector. |
+| `node <skill-dir>/scripts/openfin.mjs click <target> <selector> [--timeout <ms>]` | Clicks the first visible element matching the selector. |
+| `node <skill-dir>/scripts/openfin.mjs type <target> <selector> <text> [--timeout <ms>]` | Fills the first visible matching input with `<text>`, replacing its value (fires `input`/`change`). |
+| `node <skill-dir>/scripts/openfin.mjs eval <target> <js>` | Evaluates a JavaScript expression in the target (promises are awaited) and returns the JSON-serialized `result` (`null` for `undefined`). Wrap statements in an IIFE. A script that throws fails with `EVAL_FAILED`. Use it for app state or `fin` APIs no other command covers. |
 | `node <skill-dir>/scripts/openfin.mjs logs [--target <t>] [--level <l>] [--limit <n>]` | Recent console messages and uncaught errors from the collector's session log, oldest first: `entries[]` of `{ ts, target, level, text, type }` (`type` is `console` or `pageerror`). `--target` takes the same forms as `<target>`; `--level` is a minimum (`debug` < `log`/`info` < `warn` < `error`); `--limit` defaults to 100 (`matched` counts all hits). Also returns `logFile`, `collector.running`, and `runtimeDebugLog`, the path of the runtime's `debug.log`. Reads files only, never attaches. |
 
-`click`, `type`, and `text --selector` wait a bounded time for the selector (override with `--timeout <ms>`) before failing with `SELECTOR_TIMEOUT`.
+`click`, `type`, and `text --selector` wait a bounded time for the selector (default 5000 ms; override with `--timeout <ms>`) before failing with `SELECTOR_TIMEOUT`.
 
 ### Verifying a change
 
