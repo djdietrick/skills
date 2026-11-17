@@ -15,6 +15,8 @@ import doctor from './doctor.mjs';
 import status from './status.mjs';
 import listTargets from './list-targets.mjs';
 import logs from './logs.mjs';
+import launch from './launch.mjs';
+import stop from './stop.mjs';
 
 function notImplemented(summary) {
   return {
@@ -28,8 +30,8 @@ function notImplemented(summary) {
 
 export const commands = {
   status,
-  launch: notImplemented('Start the dev server and the app with the debug port enabled.'),
-  stop: notImplemented('Stop what this skill launched; leave attached instances alone.'),
+  launch,
+  stop,
   'list-targets': listTargets,
   screenshot: notImplemented('Capture a target to a PNG and return its path.'),
   eval: notImplemented('Run JavaScript in a target and return the JSON result.'),

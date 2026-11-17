@@ -53,9 +53,9 @@ Setup is done when `doctor` returns `ready: true`.
 
 1. `status`. If the app is `reachable`, **attach**: use it as is.
 2. If an instance is running without the debug port (`status` returns `reachable: false` with `warning.code: INSTANCE_WITHOUT_DEBUG_PORT`), tell the developer to add the runtime argument (above) and restart it themselves. Leave their app running.
-3. If nothing is running, `launch`. It starts the dev server, launches the app through the RVM with the debug port added, and returns once the first window exists.
+3. If nothing is running, `launch`. It starts the dev server, launches the app through the RVM with the debug port added, and returns once the first window exists. (If something came up meanwhile, `launch` attaches instead; it never starts a second instance.)
 4. `list-targets` to learn the windows and views, then work with them.
-5. When finished, `stop`. It quits only what `launch` started.
+5. When finished, `stop`. It quits only what `launch` started and reports what it left running.
 
 Ownership is recorded in `.scratch/openfin/state.json` in the consuming repo, so `status` and `stop` work across turns. A background log collector starts on `launch` or on the first command that attaches (`status` when reachable, `list-targets`, any target command) and records console output and uncaught errors from every window and view, including ones opened later, to `.scratch/openfin/logs/`. Output from before it started isn't captured.
 
@@ -68,8 +68,8 @@ Ownership is recorded in `.scratch/openfin/state.json` in the consuming repo, so
 | `node <skill-dir>/scripts/openfin.mjs doctor` | Setup checks: config validity and `playwright-core` resolution. Always exits 0; `ready` is true only when every check passes, `checks.<name>.error` explains a failure. |
 | `node <skill-dir>/scripts/openfin.mjs config` | Prints the resolved config (defaults applied, paths absolute). |
 | `node <skill-dir>/scripts/openfin.mjs status` | Whether an instance answers on the debug port (`reachable`) and whether this skill launched it (`launchedBySkill`). Unreachable is not an error. |
-| `node <skill-dir>/scripts/openfin.mjs launch` | Attaches if the port is already reachable; otherwise starts the dev server, waits for readiness, launches via the RVM, waits for the first target. `LAUNCH_FAILED` carries the dev-server/runtime output. |
-| `node <skill-dir>/scripts/openfin.mjs stop` | Quits the app it launched (via the app's quit API), then the dev server and log collector it started. Reports `stopped` and `leftRunning`. |
+| `node <skill-dir>/scripts/openfin.mjs launch` | If the debug port already answers, attaches instead (`attached: true`, starts nothing). Otherwise starts the dev server (skipped if its `readyUrl` already answers) and waits for `readySignal`/`readyUrl`, launches the app through the RVM with the debug port added, and returns once a first window exists (`launched: true`), with the log collector running. `LAUNCH_FAILED` carries `devServerOutput` / `runtimeOutput`, and anything this call started is stopped again. |
+| `node <skill-dir>/scripts/openfin.mjs stop` | Quits the app only if `launch` started it (calls `fin.Application.getCurrentSync().quit()` in one of its windows and waits for the debug port to close), stops the dev server only if `launch` started it, and stops the log collector. Returns `stopped[]` and `leftRunning[]`, entries `{ what: app/devServer/collector, ... }`; a `leftRunning` entry has a `reason`. |
 | `node <skill-dir>/scripts/openfin.mjs list-targets [--target <t>]` | `targets[]`, one per window and view: `target` (`uuid/name`; the URL for a page with no `fin`), `uuid`, `name`, `kind` (`window`/`view`/`unknown`), `parent` (a view's window, `uuid/name`), `url`, `title`, `workspace` (`Home`/`Dock`/`Store` or null), `aliases` (config `windows[].name`s). `--target` returns only the one target `<t>` resolves to, or the error. |
 | `node <skill-dir>/scripts/openfin.mjs screenshot <target>` | Saves a PNG under `.scratch/openfin/screenshots/` and returns its absolute path. Read the file to see it. |
 | `node <skill-dir>/scripts/openfin.mjs text <target> [--selector <css>]` | Visible text of the page or of one element. |
