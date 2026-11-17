@@ -1,6 +1,6 @@
 # 08 — Opt-in real-OpenFin test backend (Windows)
 
-Status: claimed
+Status: resolved
 Type: task
 Blocked by: 06
 
