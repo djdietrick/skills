@@ -14,14 +14,18 @@
 // OpenFin names and shapes.
 
 /** @returns {string} JS source for an inline <script> */
-export function fakeFinScript({ identity, kind, parentIdentity }) {
-  const cfg = JSON.stringify({ identity, kind, parentIdentity }).replace(/</g, '\\u003c');
+//
+// parentApi: false makes a view's getCurrentWindow() reject, so callers must
+// fall back to the platform snapshot to find its parent.
+export function fakeFinScript({ identity, kind, parentIdentity, parentApi = true }) {
+  const cfg = JSON.stringify({ identity, kind, parentIdentity, parentApi }).replace(/</g, '\\u003c');
   return `(() => {
   const cfg = ${cfg};
   const isView = cfg.kind === 'view';
   const wrap = (identity) => identity && ({ identity: { ...identity } });
   const parentWindow = () => {
     if (!isView) return Promise.reject(new Error('Not a view'));
+    if (!cfg.parentApi) return Promise.reject(new Error('getCurrentWindow unavailable (simulated)'));
     return Promise.resolve(wrap(cfg.parentIdentity));
   };
   const app = {
