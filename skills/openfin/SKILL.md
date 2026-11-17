@@ -24,7 +24,7 @@ node <skill-dir>/scripts/openfin.mjs <command> [args] [--config <path>]
 - success: `{ "ok": true, ... }`, exit code 0
 - failure: `{ "ok": false, "error": { "code", "message", "hint"?, ... } }`, exit code 1
 
-Branch on `error.code`; follow `error.hint`. Codes: `CONFIG_MISSING`, `CONFIG_INVALID` (with `fields`), `PLAYWRIGHT_MISSING`, `DEBUG_PORT_UNREACHABLE`, `INSTANCE_WITHOUT_DEBUG_PORT`, `TARGET_NOT_FOUND` / `TARGET_AMBIGUOUS` (with `candidates`), `SELECTOR_TIMEOUT` (with `target`, `selector`), `EVAL_FAILED`, `LAUNCH_FAILED`, `INVALID_ARGS`, `UNKNOWN_COMMAND`, `NOT_IMPLEMENTED`, `INTERNAL_ERROR`.
+Branch on `error.code`; follow `error.hint`. Codes: `CONFIG_MISSING`, `CONFIG_INVALID` (with `fields`), `PLAYWRIGHT_MISSING`, `DEBUG_PORT_UNREACHABLE`, `INSTANCE_WITHOUT_DEBUG_PORT`, `TARGET_NOT_FOUND` / `TARGET_AMBIGUOUS` (with `candidates`), `SELECTOR_TIMEOUT` (with `target`, `selector`), `EVAL_FAILED`, `LAUNCH_FAILED`, `INVALID_ARGS`, `UNKNOWN_COMMAND`, `INTERNAL_ERROR`.
 
 ## 1. Project config
 
