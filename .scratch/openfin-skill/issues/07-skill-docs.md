@@ -1,6 +1,6 @@
 # 07 — SKILL.md, interactive setup, test-authoring reference, install docs
 
-Status: claimed
+Status: resolved
 Type: task
 Blocked by: 01
 
