@@ -11,10 +11,10 @@ Agent skills in the plain [Agent Skills](https://agentskills.io) layout: one fol
 With the standard skills tooling, from the consuming repo:
 
 ```
-npx skills add <owner>/<repo> --skill openfin
+npx skills add djdietrick/skills --skill openfin
 ```
 
-Replace `<owner>/<repo>` with this repository's GitHub path. Or copy `skills/openfin/` into your agent's skills folder (e.g. `.claude/skills/openfin/`).
+Or copy `skills/openfin/` into your agent's skills folder (e.g. `.claude/skills/openfin/`).
 
 ### `openfin` prerequisites
 
