@@ -1,0 +1,19 @@
+{
+  "name": "openfin-skill-scripts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Helper CLI for the openfin agent skill: attach to, drive and inspect OpenFin apps over CDP.",
+  "type": "module",
+  "bin": {
+    "openfin": "scripts/openfin.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\""
+  },
+  "devDependencies": {
+    "playwright-core": "^1.49.0"
+  }
+}
