@@ -1,6 +1,6 @@
 # 06 — `launch` and `stop` with ownership rules
 
-Status: claimed
+Status: resolved
 Type: task
 Blocked by: 03, 05
 
