@@ -1,6 +1,6 @@
 # 05 — Background log collector + `logs` command
 
-Status: claimed
+Status: resolved
 Type: task
 Blocked by: 03
 
