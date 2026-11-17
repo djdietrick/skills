@@ -8,6 +8,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectorStatus, logsDir } from '../lib/collector.mjs';
 import { CliError, ErrorCode } from '../lib/errors.mjs';
+import { runtimeDebugLogPath } from '../lib/config.mjs';
 
 const DEFAULT_LIMIT = 100;
 const SEVERITY = { debug: 0, log: 1, info: 1, warn: 2, error: 3 };
@@ -32,7 +33,7 @@ export default {
       collector,
       matched,
       entries,
-      runtimeDebugLog: debugLogPath(config.logsDir),
+      runtimeDebugLog: runtimeDebugLogPath(config.logsDir),
       ...(logFile ? {} : { hint: 'No collector log yet. Run `status` or any target command while the app is reachable to start the collector.' }),
     };
   },
@@ -98,10 +99,4 @@ function newestLogFile(repoRoot) {
   return files
     .map((f) => join(dir, f))
     .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
-}
-
-/** logsDir is a Windows path in real use; join with its own separator. */
-function debugLogPath(dir) {
-  const sep = dir.includes('\\') ? '\\' : '/';
-  return dir.endsWith(sep) ? `${dir}debug.log` : `${dir}${sep}debug.log`;
 }

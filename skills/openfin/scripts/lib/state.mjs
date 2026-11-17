@@ -7,7 +7,9 @@
 //   {
 //     version: 1,
 //     debugPort: number,                       // port the launched app listens on
-//     app:        { launchedBySkill: true, pid?: number, startedAt?: string, command?: string } | null,
+//     app:        { browserId: string, pid?: number, startedAt?: string, command?: string, logFile?: string } | null,
+//                 // set only by `launch`. browserId is the runtime's browser GUID
+//                 // (from /json/version webSocketDebuggerUrl): the instance identity.
 //     devServer:  { pid: number, command: string, cwd?: string, startedAt?: string } | null,
 //     collector:  { pid: number, logFile?: string, startedAt?: string } | null,
 //   }
@@ -66,10 +68,25 @@ export function clearState(repoRoot) {
 }
 
 /**
- * True when the state says this skill launched the app on `debugPort`.
- * A launch recorded for a different port doesn't count: the config changed
- * and whatever listens now isn't ours.
+ * The app launch `launch` recorded for `debugPort`, or null. A launch
+ * recorded for a different port doesn't count: the config changed and
+ * whatever listens now isn't ours. This says nothing about whether that
+ * instance is still the one answering; see isLaunchedInstance.
+ * @returns {{ browserId: string, pid?: number } | null}
  */
-export function launchedBySkill(state, debugPort) {
-  return Boolean(state?.app?.launchedBySkill) && (state.debugPort === undefined || state.debugPort === debugPort);
+export function recordedLaunch(state, debugPort) {
+  const app = state?.app;
+  if (!app?.browserId) return null; // no record, or one without an identity we can check
+  return state.debugPort === undefined || state.debugPort === debugPort ? app : null;
+}
+
+/**
+ * True when the instance answering on the port now (`probe`, from
+ * probeDebugPort) is the very one `launch` started: same port and same
+ * browser GUID. A restart outside the skill gets a new GUID, so a developer's
+ * instance on the same port is never mistaken for ours.
+ */
+export function isLaunchedInstance(state, debugPort, probe) {
+  const app = recordedLaunch(state, debugPort);
+  return Boolean(app && probe?.reachable && probe.browserId === app.browserId);
 }

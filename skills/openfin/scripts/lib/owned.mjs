@@ -9,7 +9,7 @@ import { spawn, execFile } from 'node:child_process';
 import { mkdirSync, openSync, closeSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { scratchDir } from './state.mjs';
-import { isAlive } from './collector.mjs';
+import { isAlive } from './processes.mjs';
 
 export function launchDir(repoRoot) {
   return join(scratchDir(repoRoot), 'launch');

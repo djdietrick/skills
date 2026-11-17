@@ -50,14 +50,43 @@ function cleanupAfter(t, repo, extraPids = () => []) {
 }
 
 /** A repo whose launcher runs the sim backend on a free port. */
-async function launchableRepo(config = {}) {
+async function launchableRepo({ fixtures = FIXTURES, ...config } = {}) {
   const debugPort = await freePort();
   const repo = makeSimRepo({ debugPort });
   const fixturesFile = join(repo, 'sim-fixtures.json');
-  writeFileSync(fixturesFile, JSON.stringify(FIXTURES));
-  const launcher = { command: `${node} ${q(SIM_BACKEND)} --debug-port {debugPort} --fixtures ${q(fixturesFile)}` };
-  writeConfig(repo, { manifest: 'http://127.0.0.1/sim/manifest.json', debugPort, launcher, ...config });
+  writeFileSync(fixturesFile, JSON.stringify(fixtures));
+  const simCommand = `${node} ${q(SIM_BACKEND)} --debug-port {debugPort} --fixtures ${q(fixturesFile)}`;
+  // `launcher` may be a function of the sim command (to wrap it).
+  const launcher =
+    typeof config.launcher === 'function' ? { command: config.launcher(simCommand) } : (config.launcher ?? { command: simCommand });
+  writeConfig(repo, { manifest: 'http://127.0.0.1/sim/manifest.json', debugPort, ...config, launcher });
   return { repo, debugPort };
+}
+
+/**
+ * An RVM stand-in: starts `simCommand` as a child and stays alive after the
+ * runtime exits, like the RVM. Its own pid is written to a file.
+ */
+function rvmLikeLauncher(simCommand) {
+  const dir = mkdtempSync(join(tmpdir(), 'openfin-rvm-'));
+  const pidFile = join(dir, 'pid');
+  const script = join(dir, 'rvm.cjs');
+  writeFileSync(
+    script,
+    `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));\n` +
+      `require('node:child_process').spawn(process.argv[2], { shell: true, stdio: 'inherit' });\n` +
+      `setInterval(() => {}, 1000);\n`,
+  );
+  return {
+    command: `${node} ${q(script)} ${q(simCommand)}`,
+    pid: () => {
+      try {
+        return Number(readFileSync(pidFile, 'utf8'));
+      } catch {
+        return undefined;
+      }
+    },
+  };
 }
 
 function writeConfig(repo, block) {
@@ -269,4 +298,86 @@ test('launch rejects a malformed --timeout', async (t) => {
   const { exitCode, json } = runCli(['launch', '--timeout', 'soon'], { cwd: repo });
   assert.notEqual(exitCode, 0);
   assert.equal(json.error.code, 'INVALID_ARGS');
+});
+
+async function waitForPortClosed(port, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (await reachable(port)) {
+    if (Date.now() > deadline) return false;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return true;
+}
+
+test('an instance the developer started on the port after the launched one exited is not ours to stop', async (t) => {
+  const { repo, debugPort } = await launchableRepo();
+  cleanupAfter(t, repo);
+  assert.equal(runCli(['launch'], { cwd: repo }).json.launched, true);
+
+  // The launched app goes away outside the skill; the developer starts their own on the same port.
+  await killGroup(readStateFile(repo).app.pid);
+  assert.ok(await waitForPortClosed(debugPort));
+  const theirs = await startSim(t, { fixtures: FIXTURES, debugPort });
+
+  assert.equal(runCli(['status'], { cwd: repo }).json.launchedBySkill, false);
+  const stopped = runCli(['stop'], { cwd: repo });
+  assert.equal(stopped.exitCode, 0, JSON.stringify(stopped.json));
+  assert.ok(!stopped.json.stopped.some((s) => s.what === 'app'), JSON.stringify(stopped.json));
+  assert.deepEqual(stopped.json.leftRunning.map((s) => s.what), ['app']);
+  assert.match(stopped.json.leftRunning[0].reason, /not launched by this skill/);
+  assert.ok(theirs.alive(), "the developer's instance must survive stop");
+  assert.ok(await reachable(debugPort));
+  assert.equal(readStateFile(repo).app ?? null, null, 'the stale launch record is cleared');
+});
+
+test('stop quits the app gracefully and never kills the launcher (RVM) process tree', async (t) => {
+  let rvm;
+  const { repo, debugPort } = await launchableRepo({ launcher: (simCommand) => (rvm = rvmLikeLauncher(simCommand)).command });
+  cleanupAfter(t, repo, () => [rvm.pid()]);
+
+  const launched = runCli(['launch'], { cwd: repo });
+  assert.equal(launched.exitCode, 0, JSON.stringify(launched.json));
+  const stopped = runCli(['stop'], { cwd: repo });
+  assert.equal(stopped.exitCode, 0, JSON.stringify(stopped.json));
+  assert.deepEqual(stopped.json.stopped.map((s) => s.what).sort(), ['app', 'collector']);
+  assert.equal(await reachable(debugPort), false, 'the app quit');
+  assert.ok(isAlive(rvm.pid()), 'the RVM stand-in must not be killed by stop');
+});
+
+test('when quit() does not close the app, stop leaves it running with a hint instead of killing it', async (t) => {
+  const ignoresQuit = FIXTURES.map((f) =>
+    f.id === 'main'
+      ? { ...f, body: '<script>fin.Application.getCurrentSync = () => ({ quit: async () => {} });</script>' }
+      : f,
+  );
+  const { repo, debugPort } = await launchableRepo({ fixtures: ignoresQuit });
+  cleanupAfter(t, repo);
+  assert.equal(runCli(['launch'], { cwd: repo }).json.launched, true);
+  const appPid = readStateFile(repo).app.pid;
+
+  const stopped = runCli(['stop', '--timeout', '1000'], { cwd: repo });
+  assert.equal(stopped.exitCode, 0, JSON.stringify(stopped.json));
+  assert.deepEqual(stopped.json.stopped.map((s) => s.what), ['collector']);
+  const [app] = stopped.json.leftRunning;
+  assert.equal(app?.what, 'app', JSON.stringify(stopped.json));
+  assert.match(app.hint, /debug\.log/);
+  assert.ok(isAlive(appPid), 'the app must not be force-killed');
+  assert.ok(await reachable(debugPort));
+  assert.equal(readStateFile(repo).app?.pid, appPid, 'still ours: a later stop can retry');
+});
+
+test('stop reports a dev server launch started that has since exited, without killing anything', async (t) => {
+  const devPort = await freePort();
+  const { repo } = await launchableRepo({
+    devServer: { command: `${node} -e ${q(DEV_SERVER)} ${devPort}`, readySignal: 'dev server ready' },
+  });
+  cleanupAfter(t, repo);
+  assert.equal(runCli(['launch'], { cwd: repo }).exitCode, 0);
+  const devPid = readStateFile(repo).devServer.pid;
+  await killGroup(devPid);
+
+  const stopped = runCli(['stop'], { cwd: repo });
+  const dev = stopped.json.stopped.find((s) => s.what === 'devServer');
+  assert.equal(dev?.alreadyExited, true, JSON.stringify(stopped.json));
+  assert.equal(readStateFile(repo).devServer ?? null, null);
 });

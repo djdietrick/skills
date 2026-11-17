@@ -18,22 +18,13 @@ import { mkdirSync, openSync, closeSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scratchDir, readState, updateState } from './state.mjs';
+import { isAlive } from './processes.mjs';
 
 const COLLECTOR_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), '..', 'collector.mjs');
 const READY_TIMEOUT_MS = 15000;
 
 export function logsDir(repoRoot) {
   return join(scratchDir(repoRoot), 'logs');
-}
-
-export function isAlive(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return err.code === 'EPERM';
-  }
 }
 
 /** @returns {{ running: boolean, pid?: number, logFile?: string }} */

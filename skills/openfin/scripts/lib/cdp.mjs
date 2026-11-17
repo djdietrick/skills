@@ -17,7 +17,7 @@ export function debugUrl(port) {
 }
 
 /**
- * @returns {Promise<{ reachable: true, browser: string, protocolVersion?: string, webSocketDebuggerUrl?: string }
+ * @returns {Promise<{ reachable: true, browser: string, protocolVersion?: string, webSocketDebuggerUrl?: string, browserId?: string }
  *   | { reachable: false, reason: string }>}
  */
 export async function probeDebugPort(port, { timeoutMs = 1500 } = {}) {
@@ -30,6 +30,8 @@ export async function probeDebugPort(port, { timeoutMs = 1500 } = {}) {
       browser: v.Browser,
       protocolVersion: v['Protocol-Version'],
       webSocketDebuggerUrl: v.webSocketDebuggerUrl,
+      // The browser GUID: new on every runtime start, so it identifies this instance.
+      browserId: v.webSocketDebuggerUrl?.match(/\/devtools\/browser\/([^/?#]+)/)?.[1],
     };
   } catch (err) {
     return { reachable: false, reason: err?.cause?.code ?? err?.name ?? String(err) };

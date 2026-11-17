@@ -3,7 +3,7 @@
 // unreachable port is reachable:false, plus an INSTANCE_WITHOUT_DEBUG_PORT
 // warning when OpenFin processes are running without it (Windows).
 import { probeDebugPort, connect } from '../lib/cdp.mjs';
-import { readState, launchedBySkill, statePath } from '../lib/state.mjs';
+import { readState, isLaunchedInstance, statePath } from '../lib/state.mjs';
 import { findOpenFinProcesses } from '../lib/processes.mjs';
 import { ErrorCode } from '../lib/errors.mjs';
 
@@ -13,14 +13,14 @@ export default {
   async run({ config }) {
     const { debugPort, repoRoot } = config;
     const state = readState(repoRoot);
+    const probe = await probeDebugPort(debugPort);
     const base = {
       debugPort,
-      launchedBySkill: launchedBySkill(state, debugPort),
+      launchedBySkill: isLaunchedInstance(state, debugPort, probe),
       stateFile: statePath(repoRoot),
       state,
     };
 
-    const probe = await probeDebugPort(debugPort);
     if (!probe.reachable) {
       const result = { reachable: false, ...base };
       const processes = await findOpenFinProcesses();

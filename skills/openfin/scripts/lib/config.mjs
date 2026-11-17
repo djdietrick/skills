@@ -190,6 +190,12 @@ function validate(raw, { configPath, repoRoot, env }) {
   };
 }
 
+/** Path of the runtime's debug.log in `logsDir` (a Windows path in real use; joined with its own separator). */
+export function runtimeDebugLogPath(logsDir) {
+  const sep = logsDir.includes('\\') ? '\\' : '/';
+  return logsDir.endsWith(sep) ? `${logsDir}debug.log` : `${logsDir}${sep}debug.log`;
+}
+
 /** Expand Windows-style %VAR% references that are set in env; leave others as-is. */
 function expandEnvVars(value, env) {
   return value.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, name) => env[name] ?? m);

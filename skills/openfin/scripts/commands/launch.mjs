@@ -16,7 +16,7 @@ import { existsSync } from 'node:fs';
 import { probeDebugPort, debugUrl } from '../lib/cdp.mjs';
 import { ensureCollector } from '../lib/collector.mjs';
 import { CliError, ErrorCode } from '../lib/errors.mjs';
-import { readState, updateState, launchedBySkill } from '../lib/state.mjs';
+import { readState, updateState, isLaunchedInstance } from '../lib/state.mjs';
 import { spawnOwned, killOwnedTree, tail, launchDir } from '../lib/owned.mjs';
 import { timeoutFlag } from '../lib/args.mjs';
 import { pollUntil } from '../lib/wait.mjs';
@@ -30,12 +30,13 @@ export default {
   async run({ config, env, args }) {
     const { debugPort, repoRoot } = config;
     const timeoutMs = timeoutFlag(args.flags.timeout, DEFAULT_TIMEOUT_MS);
-    if ((await probeDebugPort(debugPort)).reachable) {
+    const probe = await probeDebugPort(debugPort);
+    if (probe.reachable) {
       return {
         launched: false,
         attached: true,
         debugPort,
-        launchedBySkill: launchedBySkill(readState(repoRoot), debugPort),
+        launchedBySkill: isLaunchedInstance(readState(repoRoot), debugPort, probe),
         collector: await startCollector(config),
       };
     }
@@ -58,10 +59,13 @@ export default {
       throw launchFailed(`Launch failed: ${err?.message ?? err}`, logs);
     }
 
+    // The browser GUID identifies this instance, so `stop` can tell it from
+    // one the developer starts on the same port later.
+    const { browserId } = await probeDebugPort(debugPort);
     updateState(repoRoot, (s) => ({
       ...s,
       debugPort,
-      app: { launchedBySkill: true, pid: app.pid, command: app.command, logFile: logs.app, startedAt: new Date().toISOString() },
+      app: { browserId, pid: app.pid, command: app.command, logFile: logs.app, startedAt: new Date().toISOString() },
     }));
     return {
       launched: true,

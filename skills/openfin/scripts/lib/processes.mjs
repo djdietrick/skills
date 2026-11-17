@@ -7,6 +7,17 @@ const execFileAsync = promisify(execFile);
 
 const OPENFIN_IMAGES = ['openfin.exe', 'openfinrvm.exe'];
 
+/** True when a process with this PID exists (EPERM: exists, not ours to signal). */
+export function isAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === 'EPERM';
+  }
+}
+
 /**
  * Running OpenFin runtime / RVM processes. Windows only; elsewhere (and on
  * any failure to list) returns [] — OpenFin itself is Windows-only.
