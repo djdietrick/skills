@@ -14,6 +14,7 @@ import config from './config.mjs';
 import doctor from './doctor.mjs';
 import status from './status.mjs';
 import listTargets from './list-targets.mjs';
+import interact from './interact.mjs';
 import logs from './logs.mjs';
 import launch from './launch.mjs';
 import stop from './stop.mjs';
@@ -33,11 +34,11 @@ export const commands = {
   launch,
   stop,
   'list-targets': listTargets,
-  screenshot: notImplemented('Capture a target to a PNG and return its path.'),
-  eval: notImplemented('Run JavaScript in a target and return the JSON result.'),
-  click: notImplemented('Click an element in a target by selector.'),
-  type: notImplemented('Type text into an element in a target by selector.'),
-  text: notImplemented('Return the visible text of a target or element.'),
+  screenshot: interact.screenshot,
+  eval: interact.eval,
+  click: interact.click,
+  type: interact.type,
+  text: interact.text,
   logs,
   config,
   doctor,
