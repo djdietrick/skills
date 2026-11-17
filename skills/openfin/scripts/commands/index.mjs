@@ -14,6 +14,7 @@ import config from './config.mjs';
 import doctor from './doctor.mjs';
 import status from './status.mjs';
 import listTargets from './list-targets.mjs';
+import logs from './logs.mjs';
 
 function notImplemented(summary) {
   return {
@@ -35,7 +36,7 @@ export const commands = {
   click: notImplemented('Click an element in a target by selector.'),
   type: notImplemented('Type text into an element in a target by selector.'),
   text: notImplemented('Return the visible text of a target or element.'),
-  logs: notImplemented('Return recent console entries, filtered by target and level.'),
+  logs,
   config,
   doctor,
 };

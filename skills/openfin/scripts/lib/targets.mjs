@@ -67,6 +67,14 @@ export async function listTargets(session, config) {
 }
 
 /**
+ * The Target for one page, without parent lookup (`parent` is null for views
+ * whose page can't report it). Used by the log collector to label entries.
+ */
+export async function identifyPage(page, config) {
+  return toTarget(page, await readIdentity(page), config);
+}
+
+/**
  * Turn a target argument into one page. Match order: exact `uuid/name` (or
  * URL for fin-less pages), then config alias, then unique short name.
  * @returns {Promise<{ target: object, page: import('playwright-core').Page }>}
