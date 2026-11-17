@@ -49,6 +49,17 @@ export function makeSimRepo({ debugPort, config = {}, state } = {}) {
   return repo;
 }
 
+/**
+ * Env for runCli that makes the CLI see `processes` ({ name, pid, commandLine })
+ * as the running OpenFin processes (the CLI's test-only process-list seam;
+ * OpenFin processes can't exist off Windows).
+ */
+export function fakeOpenFinProcesses(repo, processes) {
+  const file = join(repo, 'fake-processes.json');
+  writeFileSync(file, JSON.stringify(processes));
+  return { OPENFIN_TEST_PROCESS_LIST: file };
+}
+
 export function writeSimState(repo, state) {
   const dir = join(repo, '.scratch', 'openfin');
   mkdirSync(dir, { recursive: true });

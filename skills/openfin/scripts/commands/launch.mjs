@@ -1,6 +1,8 @@
 // `openfin launch [--timeout <ms>]` — attach first, launch only when nothing is running.
 //
 // Debug port reachable: attach (start nothing), make sure the log collector runs.
+// This app's manifest running in OpenFin without the debug port:
+// INSTANCE_WITHOUT_DEBUG_PORT, start nothing.
 // Otherwise (each wait bounded by --timeout, default 120 s):
 //   1. dev server (config.devServer): skipped when its readyUrl already
 //      answers (someone else runs it; not ours). Else start it and wait for
@@ -13,7 +15,8 @@
 // Any failure: stop what this call started, LAUNCH_FAILED with its output.
 import { join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
-import { probeDebugPort, debugUrl } from '../lib/cdp.mjs';
+import { probeDebugPort, debugUrl, withoutDebugPortHint } from '../lib/cdp.mjs';
+import { findAppOpenFinProcesses } from '../lib/processes.mjs';
 import { ensureCollector } from '../lib/collector.mjs';
 import { CliError, ErrorCode } from '../lib/errors.mjs';
 import { readState, updateState, isLaunchedInstance } from '../lib/state.mjs';
@@ -39,6 +42,17 @@ export default {
         launchedBySkill: isLaunchedInstance(readState(repoRoot), debugPort, probe),
         collector: await startCollector(config),
       };
+    }
+
+    // This app already running without the debug port: launching again would
+    // start a second instance (or hand off to the running one). Don't.
+    const running = await findAppOpenFinProcesses(config);
+    if (running.length) {
+      throw new CliError(
+        ErrorCode.INSTANCE_WITHOUT_DEBUG_PORT,
+        `This app's manifest is already running in OpenFin, but nothing answers on debug port ${debugPort}.`,
+        { hint: withoutDebugPortHint(debugPort), details: { debugPort, processes: running } },
+      );
     }
 
     const logs = { devServer: join(launchDir(repoRoot), 'dev-server.log'), app: join(launchDir(repoRoot), 'app.log') };

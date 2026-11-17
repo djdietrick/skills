@@ -8,7 +8,7 @@ import { writeFileSync, readFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCli } from './helpers/cli.mjs';
-import { makeSimRepo, startSim, freePort, SIM_BACKEND } from './helpers/sim.mjs';
+import { makeSimRepo, startSim, freePort, SIM_BACKEND, fakeOpenFinProcesses } from './helpers/sim.mjs';
 import { collectorPid, isAlive, killCollectorAfter, waitForExit } from './helpers/collector.mjs';
 
 const FIXTURES = [
@@ -298,6 +298,32 @@ test('launch rejects a malformed --timeout', async (t) => {
   const { exitCode, json } = runCli(['launch', '--timeout', 'soon'], { cwd: repo });
   assert.notEqual(exitCode, 0);
   assert.equal(json.error.code, 'INVALID_ARGS');
+});
+
+test('launch refuses with INSTANCE_WITHOUT_DEBUG_PORT when this app runs without the debug port', async (t) => {
+  const launcher = hangingProcess();
+  const { repo } = await launchableRepo({ launcher: { command: launcher.command } });
+  cleanupAfter(t, repo, () => [launcher.pid()]);
+  const env = fakeOpenFinProcesses(repo, [
+    { name: 'OpenFinRVM.exe', pid: 4002, commandLine: 'OpenFinRVM.exe --config=http://127.0.0.1/sim/manifest.json' },
+  ]);
+
+  const { exitCode, json } = runCli(['launch', '--timeout', '1000'], { cwd: repo, env });
+  assert.notEqual(exitCode, 0);
+  assert.equal(json.error.code, 'INSTANCE_WITHOUT_DEBUG_PORT', JSON.stringify(json));
+  assert.match(json.error.hint, /--remote-debugging-port=/);
+  assert.equal(launcher.pid(), undefined, 'nothing is launched');
+});
+
+test('launch is not blocked by another OpenFin app running without the debug port', async (t) => {
+  const { repo } = await launchableRepo();
+  cleanupAfter(t, repo);
+  const env = fakeOpenFinProcesses(repo, [
+    { name: 'OpenFin.exe', pid: 4001, commandLine: 'OpenFin.exe --config=https://example.com/other-app/app.json' },
+  ]);
+  const { exitCode, json } = runCli(['launch'], { cwd: repo, env });
+  assert.equal(exitCode, 0, JSON.stringify(json));
+  assert.equal(json.launched, true);
 });
 
 async function waitForPortClosed(port, timeoutMs = 5000) {

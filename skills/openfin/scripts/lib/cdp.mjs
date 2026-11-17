@@ -67,6 +67,15 @@ export async function connect(config, { timeoutMs = 10000, collector = true } = 
   };
 }
 
+/** What to tell the developer when their app runs without the debug port. */
+export function withoutDebugPortHint(port) {
+  return (
+    'Do not restart the developer\'s app. Ask them to add "--remote-debugging-port=' +
+    port +
+    '" to the runtime arguments in their dev manifest and restart it themselves.'
+  );
+}
+
 export function unreachableError(port, reason) {
   return new CliError(ErrorCode.DEBUG_PORT_UNREACHABLE, `Nothing is answering on the OpenFin debug port ${port}.`, {
     hint:

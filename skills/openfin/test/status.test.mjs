@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runCli } from './helpers/cli.mjs';
-import { makeSimRepo, freePort, startSim, DEFAULT_FIXTURES } from './helpers/sim.mjs';
+import { makeSimRepo, freePort, startSim, DEFAULT_FIXTURES, fakeOpenFinProcesses } from './helpers/sim.mjs';
 import { killCollectorAfter } from './helpers/collector.mjs';
 
 test('status reports reachable:true for a running instance and leaves it running', async (t) => {
@@ -68,6 +68,23 @@ test('status after the app quits reports reachable:false', async (t) => {
   const { exitCode, json } = runCli(['status'], { cwd: repo });
   assert.equal(exitCode, 0, JSON.stringify(json));
   assert.equal(json.reachable, false);
+});
+
+test('status warns INSTANCE_WITHOUT_DEBUG_PORT only for OpenFin processes running this app\'s manifest', async () => {
+  const debugPort = await freePort();
+  const repo = makeSimRepo({ debugPort });
+  const other = { name: 'OpenFin.exe', pid: 4001, commandLine: 'OpenFin.exe --config=https://example.com/other-app/app.json' };
+  const ours = { name: 'OpenFinRVM.exe', pid: 4002, commandLine: 'OpenFinRVM.exe --config=HTTP://127.0.0.1/sim/manifest.json' };
+
+  const unrelated = runCli(['status'], { cwd: repo, env: fakeOpenFinProcesses(repo, [other]) });
+  assert.equal(unrelated.json.reachable, false);
+  assert.equal(unrelated.json.warning, undefined, 'another OpenFin app must not trigger the warning');
+
+  const { exitCode, json } = runCli(['status'], { cwd: repo, env: fakeOpenFinProcesses(repo, [other, ours]) });
+  assert.equal(exitCode, 0, JSON.stringify(json));
+  assert.equal(json.reachable, false);
+  assert.equal(json.warning?.code, 'INSTANCE_WITHOUT_DEBUG_PORT', JSON.stringify(json));
+  assert.deepEqual(json.warning.processes.map((p) => p.pid), [4002]);
 });
 
 test('status reports reachable:false (not an error) when nothing listens on the debug port', async () => {
