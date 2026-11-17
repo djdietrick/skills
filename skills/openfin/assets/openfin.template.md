@@ -17,6 +17,7 @@ exactly one such block.
 | `devServer` | no | `null` | How to start the app's web assets: `command` (required if set), `cwd` (relative to repo root, default `.`), and either `readyUrl` (polled until it responds) or `readySignal` (text the command prints when it's ready). Use `null` if the manifest's URLs are hosted elsewhere. |
 | `windows` | no | `[]` | Key windows and views: `name` (what people call it), optional `identity` (`uuid/name` from OpenFin), and `purpose`. Agents use these names when addressing targets. |
 | `logsDir` | no | `%LOCALAPPDATA%\OpenFin` | OpenFin runtime directory that holds `debug.log`. `%VAR%` references are expanded. |
+| `launcher` | no | unset (the RVM) | Replaces the RVM launch with your own command: `command` (run in a shell; `{debugPort}` and `{manifest}` are substituted) and optional `cwd`. It must start the app with the debug port open. Leave it out for normal use. |
 
 To let agents attach to instances you start yourself, add
 `--remote-debugging-port=9090` (matching `debugPort`) to `runtime.arguments`

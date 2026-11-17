@@ -31,6 +31,8 @@ const BLOCK_RE = /^```json[ \t]+openfin-config[ \t]*\r?\n([\s\S]*?)^```[ \t]*$/g
  *   cwd is absolute (resolved against repoRoot)
  * @property {{ name: string, identity?: string, purpose?: string }[]} windows
  * @property {string} logsDir      with %VAR% references expanded where set
+ * @property {{ command: string, cwd: string }} [launcher]  replaces the RVM in `launch` (set only when
+ *   configured): a shell command; `{debugPort}` and `{manifest}` are substituted. cwd is absolute.
  * @property {Record<string, unknown>} raw  the parsed block, for fields added later
  */
 
@@ -157,6 +159,19 @@ function validate(raw, { configPath, repoRoot, env }) {
     else logsDir = raw.logsDir;
   }
 
+  // launcher — optional override of the RVM launch command
+  let launcher;
+  if (raw.launcher !== undefined && raw.launcher !== null) {
+    const l = raw.launcher;
+    if (typeof l !== 'object' || Array.isArray(l)) {
+      bad('launcher', 'must be an object { command, cwd? } or null');
+    } else {
+      if (!isNonEmptyString(l.command)) bad('launcher.command', 'is required when launcher is set');
+      const lCwd = optionalString(l.cwd, 'launcher.cwd');
+      launcher = { command: l.command, cwd: isAbsolute(lCwd ?? '') ? lCwd : resolve(repoRoot, lCwd ?? '.') };
+    }
+  }
+
   if (problems.length) {
     const summary = problems.map((p) => `${p.field} ${p.problem}`).join('; ');
     throw invalid(configPath, summary + '.', problems);
@@ -170,6 +185,7 @@ function validate(raw, { configPath, repoRoot, env }) {
     devServer,
     windows,
     logsDir: expandEnvVars(logsDir, env),
+    ...(launcher ? { launcher } : {}),
     raw,
   };
 }
