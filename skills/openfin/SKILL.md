@@ -61,7 +61,7 @@ Ownership is recorded in `.scratch/openfin/state.json` in the consuming repo, so
 
 ## 3. Command reference
 
-`<target>` is an OpenFin identity `uuid/name`, a unique short `name`, or a config `windows[].name` alias. A miss returns `TARGET_NOT_FOUND` or `TARGET_AMBIGUOUS` with `candidates`; pick one and retry.
+`<target>` is an OpenFin identity `uuid/name`, a config `windows[].name` alias, or a unique short `name`, tried in that order. A miss returns `TARGET_NOT_FOUND` or `TARGET_AMBIGUOUS` with `candidates`; pick one and retry.
 
 | Command | Does |
 | --- | --- |
@@ -70,7 +70,7 @@ Ownership is recorded in `.scratch/openfin/state.json` in the consuming repo, so
 | `node <skill-dir>/scripts/openfin.mjs status` | Whether an instance answers on the debug port (`reachable`) and whether this skill launched it (`launchedBySkill`). Unreachable is not an error. |
 | `node <skill-dir>/scripts/openfin.mjs launch` | Attaches if the port is already reachable; otherwise starts the dev server, waits for readiness, launches via the RVM, waits for the first target. `LAUNCH_FAILED` carries the dev-server/runtime output. |
 | `node <skill-dir>/scripts/openfin.mjs stop` | Quits the app it launched (via the app's quit API), then the dev server and log collector it started. Reports `stopped` and `leftRunning`. |
-| `node <skill-dir>/scripts/openfin.mjs list-targets` | Every window and view: `uuid/name`, kind (`window`/`view`/`unknown`), parent window, url, title, Workspace label (Home/Dock/Store), config aliases. |
+| `node <skill-dir>/scripts/openfin.mjs list-targets [--target <t>]` | `targets[]`, one per window and view: `target` (`uuid/name`; the URL for a page with no `fin`), `uuid`, `name`, `kind` (`window`/`view`/`unknown`), `parent` (a view's window, `uuid/name`), `url`, `title`, `workspace` (`Home`/`Dock`/`Store` or null), `aliases` (config `windows[].name`s). `--target` returns only the one target `<t>` resolves to, or the error. |
 | `node <skill-dir>/scripts/openfin.mjs screenshot <target>` | Saves a PNG under `.scratch/openfin/screenshots/` and returns its absolute path. Read the file to see it. |
 | `node <skill-dir>/scripts/openfin.mjs text <target> [--selector <css>]` | Visible text of the page or of one element. |
 | `node <skill-dir>/scripts/openfin.mjs click <target> <selector>` | Clicks an element. |

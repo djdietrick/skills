@@ -13,6 +13,7 @@ import { CliError, ErrorCode } from '../lib/errors.mjs';
 import config from './config.mjs';
 import doctor from './doctor.mjs';
 import status from './status.mjs';
+import listTargets from './list-targets.mjs';
 
 function notImplemented(summary) {
   return {
@@ -28,7 +29,7 @@ export const commands = {
   status,
   launch: notImplemented('Start the dev server and the app with the debug port enabled.'),
   stop: notImplemented('Stop what this skill launched; leave attached instances alone.'),
-  'list-targets': notImplemented('List windows and views by OpenFin identity (uuid/name).'),
+  'list-targets': listTargets,
   screenshot: notImplemented('Capture a target to a PNG and return its path.'),
   eval: notImplemented('Run JavaScript in a target and return the JSON result.'),
   click: notImplemented('Click an element in a target by selector.'),

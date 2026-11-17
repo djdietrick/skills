@@ -91,6 +91,7 @@ function renderPage(f) {
         identity: { uuid: f.uuid, name: f.name },
         kind: f.kind,
         parentIdentity: parent ? { uuid: parent.uuid, name: parent.name } : null,
+        parentApi: f.parentApi !== false,
       })}</script>`
     : '';
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(f.title)}</title>${fin}</head><body>${f.body ?? ''}</body></html>`;

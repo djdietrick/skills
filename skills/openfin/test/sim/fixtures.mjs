@@ -12,6 +12,7 @@
 //     body?: string,         // inner HTML of <body>
 //     open?: boolean,        // false = not opened at startup (open later with sim.openPage)
 //     fin?: boolean,         // false = plain page with no `fin` global
+//     parentApi?: boolean,   // views: false = getCurrentWindow() rejects (parent only via platform snapshot)
 //   }
 //
 // Later tickets extend DEFAULT_FIXTURES (or pass their own list) with the
