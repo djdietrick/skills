@@ -4,9 +4,11 @@
 // and by launch's readiness wait.
 // connect: Playwright connectOverCDP; every target-taking command goes
 // through it. Always `await session.close()` — it only disconnects; the
-// remote runtime keeps running.
+// remote runtime keeps running. Connecting is the "first attach": it makes
+// sure the background log collector is running (see collector.mjs).
 import { CliError, ErrorCode } from './errors.mjs';
 import { loadPlaywright } from './playwright.mjs';
+import { ensureCollector } from './collector.mjs';
 
 export const DEBUG_HOST = '127.0.0.1';
 
@@ -37,16 +39,21 @@ export async function probeDebugPort(port, { timeoutMs = 1500 } = {}) {
 /**
  * Connect over CDP to the configured debug port.
  * @param {{ repoRoot: string, debugPort: number }} config
+ * @param {{ timeoutMs?: number, collector?: boolean }} [opts]  collector:false skips ensureCollector
  * @returns {Promise<{ browser: import('playwright-core').Browser, pages(): import('playwright-core').Page[], close(): Promise<void> }>}
  * @throws {CliError} PLAYWRIGHT_MISSING | DEBUG_PORT_UNREACHABLE
  */
-export async function connect(config, { timeoutMs = 10000 } = {}) {
+export async function connect(config, { timeoutMs = 10000, collector = true } = {}) {
   const { playwright } = await loadPlaywright({ repoRoot: config.repoRoot });
   let browser;
   try {
     browser = await playwright.chromium.connectOverCDP(debugUrl(config.debugPort), { timeout: timeoutMs });
   } catch (err) {
     throw unreachableError(config.debugPort, err?.message);
+  }
+  if (collector) {
+    // Best effort: a collector that fails to start must not fail the command.
+    await ensureCollector(config).catch((err) => process.stderr.write(`log collector not started: ${err?.message ?? err}\n`));
   }
   return {
     browser,

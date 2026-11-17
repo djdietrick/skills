@@ -57,7 +57,7 @@ Setup is done when `doctor` returns `ready: true`.
 4. `list-targets` to learn the windows and views, then work with them.
 5. When finished, `stop`. It quits only what `launch` started.
 
-Ownership is recorded in `.scratch/openfin/state.json` in the consuming repo, so `status` and `stop` work across turns. A background log collector starts on `launch` or first attach and records console output from every window and view, including ones opened later.
+Ownership is recorded in `.scratch/openfin/state.json` in the consuming repo, so `status` and `stop` work across turns. A background log collector starts on `launch` or on the first command that attaches (`status` when reachable, `list-targets`, any target command) and records console output and uncaught errors from every window and view, including ones opened later, to `.scratch/openfin/logs/`. Output from before it started isn't captured.
 
 ## 3. Command reference
 
@@ -76,7 +76,7 @@ Ownership is recorded in `.scratch/openfin/state.json` in the consuming repo, so
 | `node <skill-dir>/scripts/openfin.mjs click <target> <selector> [--timeout <ms>]` | Clicks the first visible element matching the selector. |
 | `node <skill-dir>/scripts/openfin.mjs type <target> <selector> <text> [--timeout <ms>]` | Fills the first visible matching input with `<text>`, replacing its value (fires `input`/`change`). |
 | `node <skill-dir>/scripts/openfin.mjs eval <target> <js>` | Evaluates a JavaScript expression in the target (promises are awaited) and returns the JSON-serialized `result` (`null` for `undefined`). Wrap statements in an IIFE. A script that throws fails with `EVAL_FAILED`. Use it for app state or `fin` APIs no other command covers. |
-| `node <skill-dir>/scripts/openfin.mjs logs [--target <t>] [--level <l>] [--limit <n>]` | Recent console entries and uncaught errors from the collector, plus the path to the runtime `debug.log`. |
+| `node <skill-dir>/scripts/openfin.mjs logs [--target <t>] [--level <l>] [--limit <n>]` | Recent console messages and uncaught errors from the collector's session log, oldest first: `entries[]` of `{ ts, target, level, text, type }` (`type` is `console` or `pageerror`). `--target` takes the same forms as `<target>`; `--level` is a minimum (`debug` < `log`/`info` < `warn` < `error`); `--limit` defaults to 100 (`matched` counts all hits). Also returns `logFile`, `collector.running`, and `runtimeDebugLog`, the path of the runtime's `debug.log`. Reads files only, never attaches. |
 
 `click`, `type`, and `text --selector` wait a bounded time for the selector (default 5000 ms; override with `--timeout <ms>`) before failing with `SELECTOR_TIMEOUT`.
 

@@ -15,6 +15,7 @@ import doctor from './doctor.mjs';
 import status from './status.mjs';
 import listTargets from './list-targets.mjs';
 import interact from './interact.mjs';
+import logs from './logs.mjs';
 
 function notImplemented(summary) {
   return {
@@ -36,7 +37,7 @@ export const commands = {
   click: interact.click,
   type: interact.type,
   text: interact.text,
-  logs: notImplemented('Return recent console entries, filtered by target and level.'),
+  logs,
   config,
   doctor,
 };
