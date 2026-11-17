@@ -11,7 +11,7 @@ test('no subcommand returns UNKNOWN_COMMAND listing the commands', () => {
 
 test('not-yet-built subcommands return NOT_IMPLEMENTED once config is valid', () => {
   const repo = makeRepo({ configFixture: 'minimal.md' });
-  const { exitCode, json } = runCli(['screenshot', 'main'], { cwd: repo });
+  const { exitCode, json } = runCli(['stop'], { cwd: repo });
   assert.notEqual(exitCode, 0);
   assert.equal(json.error.code, 'NOT_IMPLEMENTED');
 });
