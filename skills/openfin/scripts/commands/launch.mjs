@@ -26,6 +26,7 @@ import { pollUntil } from '../lib/wait.mjs';
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const POLL_MS = 250;
+const MANIFEST_ENV = 'OPENFIN_LAUNCH_MANIFEST';
 
 export default {
   summary: 'Start the dev server and the app with the debug port enabled.',
@@ -112,8 +113,8 @@ async function startDevServer(config, logFile, timeoutMs) {
     logFile,
     failLogs: { devServer: logFile },
     timeoutMs,
-    isReady: async () =>
-      ds.readySignal ? tail(logFile, Infinity).includes(ds.readySignal) : ds.readyUrl ? urlResponds(ds.readyUrl) : true,
+    // Config validation guarantees one of the two.
+    isReady: async () => (ds.readySignal ? tail(logFile, Infinity).includes(ds.readySignal) : urlResponds(ds.readyUrl)),
     exitFails: () => true,
     exitMessage: (code) => `The dev server exited (code ${code}) before it was ready.`,
     timeoutMessage: (secs) =>
@@ -128,8 +129,11 @@ async function startApp(config, env, logFile, timeoutMs) {
   const manifest = /^[a-z][a-z0-9+.-]*:\/\//i.test(config.manifest) ? config.manifest : resolve(repoRoot, config.manifest);
   let spec;
   if (config.launcher) {
-    const command = config.launcher.command.replaceAll('{debugPort}', String(debugPort)).replaceAll('{manifest}', manifest);
-    spec = { command, cwd: config.launcher.cwd, display: command };
+    // {manifest} becomes a quoted reference to an env var holding it, so the
+    // shell passes it as one argument and never interprets its characters.
+    const manifestRef = process.platform === 'win32' ? `"%${MANIFEST_ENV}%"` : `"$${MANIFEST_ENV}"`;
+    const command = config.launcher.command.replaceAll('{debugPort}', String(debugPort)).replaceAll('{manifest}', manifestRef);
+    spec = { command, cwd: config.launcher.cwd, env: { ...process.env, [MANIFEST_ENV]: manifest }, display: command };
   } else {
     if (process.platform !== 'win32') {
       throw new CliError(ErrorCode.LAUNCH_FAILED, 'OpenFin apps launch through the RVM, which exists only on Windows.', {

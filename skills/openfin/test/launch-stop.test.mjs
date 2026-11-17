@@ -4,7 +4,7 @@
 // whatever the CLI did.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync, readFileSync, mkdtempSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdtempSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCli } from './helpers/cli.mjs';
@@ -324,6 +324,18 @@ test('launch is not blocked by another OpenFin app running without the debug por
   const { exitCode, json } = runCli(['launch'], { cwd: repo, env });
   assert.equal(exitCode, 0, JSON.stringify(json));
   assert.equal(json.launched, true);
+});
+
+test('launcher {manifest} and {debugPort} are substituted as single, unexpanded shell arguments', async (t) => {
+  const manifest = "app manifests/it's $HOME; echo injected & `x`.json";
+  const printArgs = `${node} -e ${q('console.log(JSON.stringify(process.argv.slice(1)))')} {manifest} {debugPort}`;
+  const { repo, debugPort } = await launchableRepo({ manifest, launcher: { command: printArgs } });
+  cleanupAfter(t, repo);
+
+  // The stand-in prints its argv and exits 0 without opening the port, so launch times out with its output.
+  const { json } = runCli(['launch', '--timeout', '500'], { cwd: repo });
+  assert.equal(json.error?.code, 'LAUNCH_FAILED', JSON.stringify(json));
+  assert.deepEqual(JSON.parse(json.error.runtimeOutput.trim()), [join(realpathSync(repo), manifest), String(debugPort)]);
 });
 
 async function waitForPortClosed(port, timeoutMs = 5000) {

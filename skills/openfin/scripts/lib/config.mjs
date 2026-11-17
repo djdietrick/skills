@@ -28,11 +28,12 @@ const BLOCK_RE = /^```json[ \t]+openfin-config[ \t]*\r?\n([\s\S]*?)^```[ \t]*$/g
  * @property {string} manifest     manifest path or URL, as written
  * @property {number} debugPort
  * @property {{ command: string, cwd: string, readyUrl?: string, readySignal?: string } | null} devServer
- *   cwd is absolute (resolved against repoRoot)
+ *   cwd is absolute (resolved against repoRoot); at least one of readyUrl / readySignal is set
  * @property {{ name: string, identity?: string, purpose?: string }[]} windows
  * @property {string} logsDir      with %VAR% references expanded where set
  * @property {{ command: string, cwd: string }} [launcher]  replaces the RVM in `launch` (set only when
- *   configured): a shell command; `{debugPort}` and `{manifest}` are substituted. cwd is absolute.
+ *   configured): a shell command; `{debugPort}` and `{manifest}` are substituted (each as one
+ *   shell argument; the manifest is never interpreted by the shell). cwd is absolute.
  * @property {Record<string, unknown>} raw  the parsed block, for fields added later
  */
 
@@ -117,12 +118,15 @@ function validate(raw, { configPath, repoRoot, env }) {
   if (raw.devServer !== undefined && raw.devServer !== null) {
     const ds = raw.devServer;
     if (typeof ds !== 'object' || Array.isArray(ds)) {
-      bad('devServer', 'must be an object { command, cwd?, readyUrl?, readySignal? } or null');
+      bad('devServer', 'must be an object { command, cwd?, readyUrl | readySignal } or null');
     } else {
       if (!isNonEmptyString(ds.command)) bad('devServer.command', 'is required when devServer is set');
       const dsCwd = optionalString(ds.cwd, 'devServer.cwd');
       const readyUrl = optionalString(ds.readyUrl, 'devServer.readyUrl');
       const readySignal = optionalString(ds.readySignal, 'devServer.readySignal');
+      if (!readyUrl && !readySignal) {
+        bad('devServer', 'needs readyUrl or readySignal so launch can tell when it is ready');
+      }
       devServer = {
         command: ds.command,
         cwd: isAbsolute(dsCwd ?? '') ? dsCwd : resolve(repoRoot, dsCwd ?? '.'),

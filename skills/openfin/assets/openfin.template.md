@@ -14,10 +14,10 @@ exactly one such block.
 | --- | --- | --- | --- |
 | `manifest` | yes | none | Path (relative to the repo root) or URL of the app manifest the skill launches through the RVM. |
 | `debugPort` | no | `9090` | Remote debugging port. The skill adds `--remote-debugging-port=<debugPort>` when it launches the app, and attaches to an instance already listening on it. |
-| `devServer` | no | `null` | How to start the app's web assets: `command` (required if set), `cwd` (relative to repo root, default `.`), and either `readyUrl` (polled until it responds) or `readySignal` (text the command prints when it's ready). Use `null` if the manifest's URLs are hosted elsewhere. |
+| `devServer` | no | `null` | How to start the app's web assets: `command` (required if set), `cwd` (relative to repo root, default `.`), and one of `readyUrl` (polled until it responds) or `readySignal` (text the command prints when it's ready); one is required. Use `null` if the manifest's URLs are hosted elsewhere. |
 | `windows` | no | `[]` | Key windows and views: `name` (what people call it), optional `identity` (`uuid/name` from OpenFin), and `purpose`. Agents use these names when addressing targets. |
 | `logsDir` | no | `%LOCALAPPDATA%\OpenFin` | OpenFin runtime directory that holds `debug.log`. `%VAR%` references are expanded. |
-| `launcher` | no | unset (the RVM) | Replaces the RVM launch with your own command: `command` (run in a shell; `{debugPort}` and `{manifest}` are substituted) and optional `cwd`. It must start the app with the debug port open. Leave it out for normal use. |
+| `launcher` | no | unset (the RVM) | Replaces the RVM launch with your own command: `command` (run in a shell; `{debugPort}` and `{manifest}` are substituted, each as a single argument, so don't quote them yourself) and optional `cwd`. It must start the app with the debug port open. Leave it out for normal use. |
 
 To let agents attach to instances you start yourself, add
 `--remote-debugging-port=9090` (matching `debugPort`) to `runtime.arguments`

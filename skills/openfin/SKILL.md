@@ -36,9 +36,10 @@ Ask the developer for each field, one at a time, offering the default:
 
 1. **manifest**: path (relative to repo root) or URL of the dev manifest.
 2. **debugPort**: remote debugging port, default `9090`.
-3. **devServer**: how to start the app's web assets: `command`, `cwd` (default `.`), and how to know it's ready, `readyUrl` (polled) or `readySignal` (text it prints). `null` when assets are hosted elsewhere.
+3. **devServer**: how to start the app's web assets: `command`, `cwd` (default `.`), and how to know it's ready (one is required), `readyUrl` (polled) or `readySignal` (text it prints). `null` when assets are hosted elsewhere.
 4. **windows**: the key windows and views: what the team calls each (`name`), its `uuid/name` `identity` if known, and its `purpose`.
 5. **logsDir**: OpenFin runtime directory holding `debug.log`, default `%LOCALAPPDATA%\OpenFin`.
+6. **launcher** (optional, rarely needed; don't ask unless the developer brings it up): a shell `command` (and `cwd`) that replaces the RVM launch, with `{manifest}` and `{debugPort}` substituted as single arguments. It must start the app with the debug port open. Leave it out for normal use.
 
 Then:
 

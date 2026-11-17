@@ -17,14 +17,15 @@ export function launchDir(repoRoot) {
 
 /**
  * Start a detached process with output written (truncating) to `logFile`.
- * Pass `command` (run through the shell) or `file` + `args` (no shell).
+ * Pass `command` (run through the shell) or `file` + `args` (no shell);
+ * `env` replaces the environment when given.
  * @returns {import('node:child_process').ChildProcess}  call `.unref()` once you're done watching it
  */
-export function spawnOwned({ command, file, args = [], cwd, logFile }) {
+export function spawnOwned({ command, file, args = [], cwd, env, logFile }) {
   mkdirSync(dirname(logFile), { recursive: true });
   const fd = openSync(logFile, 'w');
   try {
-    const opts = { cwd, detached: true, stdio: ['ignore', fd, fd], windowsHide: true };
+    const opts = { cwd, env, detached: true, stdio: ['ignore', fd, fd], windowsHide: true };
     const child = command !== undefined ? spawn(command, { ...opts, shell: true }) : spawn(file, args, opts);
     child.on('error', () => {}); // surfaced through 'exit' / readiness checks
     return child;

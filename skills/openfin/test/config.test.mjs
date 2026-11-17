@@ -91,6 +91,26 @@ test('every invalid field is reported at once', () => {
   );
 });
 
+test('a devServer without readyUrl or readySignal is CONFIG_INVALID (launch could not tell when it is ready)', () => {
+  const error = expectInvalid(block(JSON.stringify({ manifest: 'm.json', devServer: { command: 'npm run dev' } })), {
+    fields: ['devServer'],
+  });
+  assert.match(error.message, /readyUrl or readySignal/);
+});
+
+test('launcher is optional; when set it needs a command, and its cwd resolves against the repo root', () => {
+  expectInvalid(block(JSON.stringify({ manifest: 'm.json', launcher: { cwd: 'tools' } })), { fields: ['launcher.command'] });
+  expectInvalid(block(JSON.stringify({ manifest: 'm.json', launcher: 'run-it' })), { fields: ['launcher'] });
+  expectInvalid(block(JSON.stringify({ manifest: 'm.json', launcher: { command: 'x', cwd: 7 } })), { fields: ['launcher.cwd'] });
+
+  const repo = makeRepo({
+    configText: block(JSON.stringify({ manifest: 'm.json', launcher: { command: 'start-app {manifest} {debugPort}', cwd: 'tools' } })),
+  });
+  const { exitCode, json } = runCli(['config'], { cwd: repo });
+  assert.equal(exitCode, 0, JSON.stringify(json));
+  assert.deepEqual(json.config.launcher, { command: 'start-app {manifest} {debugPort}', cwd: join(realpathSync(repo), 'tools') });
+});
+
 test('--config points at a config outside docs/agents', () => {
   const repo = makeRepo();
   const { exitCode, json } = runCli(['config', '--config', join(FIXTURES, 'custom-port.md')], { cwd: repo });
