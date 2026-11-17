@@ -1,6 +1,6 @@
 # 03 — `list-targets` and target name resolution
 
-Status: claimed
+Status: resolved
 Type: task
 Blocked by: 02
 

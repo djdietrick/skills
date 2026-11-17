@@ -1,6 +1,6 @@
 # 05 — Background log collector + `logs` command
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: 03
 

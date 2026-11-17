@@ -1,6 +1,6 @@
 # 04 — `screenshot`, `text`, `click`, `type`, `eval`
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: 03
 
